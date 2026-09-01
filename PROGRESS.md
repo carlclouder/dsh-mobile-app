@@ -113,7 +113,7 @@
 
 - 模拟器 AVD `dsh_test`（API 35 / WHPX / 4GB，`-no-audio` 故无声无震动，仅作 UI/逻辑验证），地址 `http://10.0.2.2:3080`（IDE debug Host 改写 + cleartext debug 配置 NAT 直连宿主 DSH）。
 - 测试会话 `zai-coding-cn/glm-5.3` 处于 **RATE_LIMIT**（429，限额 2026-08-25 21:05 重置）→ agent 不调工具/审批难触发根因；测试应用 `deepseek-v4-flash`（主模型，额度正常）。
-- 真机 v2309a 未连 adb（真机走 `https://<PC-name>.tailnet.ts.net`，无需 debug 配置；通知/语音/震动在真机验证最佳）。
+- 真机 <phone-model> 未连 adb（真机走 `https://<PC-name>.tailnet.ts.net`，无需 debug 配置；通知/语音/震动在真机验证最佳）。
 - 一切构建从 `D:\dshm`（ASCII 联接）：`$env:JAVA_HOME="D:\dshm\.toolchain\jdk17"; $env:ANDROID_HOME="D:\dshm\.toolchain\android-sdk"; & "D:\dshm\.toolchain\gradle-8.9\bin\gradle.bat" -p "D:\dshm" --no-daemon <task>`
 
 ### 待办 / 可选深水区（需求评级中，需你拍板）
@@ -130,11 +130,11 @@
 - [x] **当前会话任务列表栏已做**（todo/write 事件）：`任务 / N 进行中 · M 待处理 / 项目列表（进行中带转圈）`，可展开/收起。**已实机验证**（截图 `docs/screenshots/conversation_todo_bar.png`）。
 - [x] **内联审批/提问卡已做**：挂起审批卡（工具名+原因+允许一次/拒绝→respondApproval）+ 内联提问卡；状态机快照→DshRepository→会话页。**已编译；需真实审批事件才能端到端触发验证**（测试模型 glm-5.3 RATE_LIMIT，难触发）。
 - [ ] 代码语法高亮颜色、内联审批/提问卡端到端 —— 需人工/真机验收（模拟器无法验证视觉与真实审批）
-- [ ] **真机 v2309a 验收**（通知铃声/震动/语音识别/息屏可用性——模拟器无法验证的项）
+- [ ] **真机 <phone-model> 验收**（通知铃声/震动/语音识别/息屏可用性——模拟器无法验证的项）
 - [x] **鲸鱼图标改官方资产**：前景=官方 `/favicon.svg` 鲸鱼路径；背景=官方蓝渐变；group 平移缩放置中安全区。**已编译无崩溃；外观待用户目检**。
 - [x] **会话操作已做（重命名/分叉/归档，§5.4.1）**：SessionRow 行尾 ⋮ 菜单 + 确认/输入对话框；DshApiClient+sessionRename/sessionFork/workspaceArchiveSession；修复操作后列表不即时刷新（operationTick+requestManualRefresh），分叉自动跳转。**模拟器实测通过**（release 0.1.93）。
 - [ ] **会话操作真机验收** / **内联审批·提问卡端到端** / **代码语法高亮颜色目检** —— 需真机/真实事件触发（模拟器无法验证视觉与真实审批）。
-- [ ] **真机 v2309a 验收**（通知铃声/震动/语音识别/息屏可用性——模拟器无法验证的项）。
+- [ ] **真机 <phone-model> 验收**（通知铃声/震动/语音识别/息屏可用性——模拟器无法验证的项）。
 
 ### release 发布版（2026-08-25）
 - 位置：`<repo>\app\build\outputs\apk\release\DSH-Mobile-release-v<版本>.apk`（**约 2.5MB**，R8 混淆压缩，debug 11.5MB 的约 1/5）。**用户只装 release 版。**
@@ -164,7 +164,7 @@
   - DSH 信任栏栅（源码钉死）：Host∈{loopback 主机名|受信权威} 且无 Origin 即放行；
     10.0.2.2 非 loopback → debug 构建 Host 改写拦截器（仅 BuildConfig.DEBUG）
   - shell uid 广播无法送达 exported=false 接收器 → run-as 以 App uid 发（--user 0）
-- 真机（v2309a）复核仍可选：adb devices 当前为空；真机走 https://<PC-name>.tailnet.ts.net
+- 真机（<phone-model>）复核仍可选：adb devices 当前为空；真机走 https://<PC-name>.tailnet.ts.net
 
 </details>
   无需任何 debug 配置（明文/Host改写均不生效于 release 逻辑）
@@ -255,7 +255,7 @@
 - [x] DESIGN.md §11 完成度同步（实施偏差记录在案）
 - [x] 模拟器 E2E 五连测（见文首断点；截图存 docs/）
 - [x] 交付收口：提交 + 本台账 + 最终报告
-- [ ] 真机 v2309a 可选复核（无 debug 配置依赖；adb 连上即可 adb install -r）
+- [ ] 真机 <phone-model> 可选复核（无 debug 配置依赖；adb 连上即可 adb install -r）
 
 ## M5 WebView 对话页（历史清单，已并入上文 M5 段）
 

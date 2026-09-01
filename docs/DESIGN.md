@@ -12,7 +12,7 @@
 ## 1. 背景与目标
 
 PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0.1:3080）。
-手机（vivo v2309a，Android）已通过 Tailscale 与 PC 组网，经
+手机（<phone-model>，Android）已通过 Tailscale 与 PC 组网，经
 `https://<PC-name>.tailnet.ts.net`（tailscale serve 隧道）可访问该 GUI。
 
 现状痛点：手机浏览器直接打开 PC 网页，排版拥挤、无后台通知、多会话切换困难。
@@ -32,7 +32,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 | 2.3 | 多会话列表（全部项目、三态分组、快速进入） | ✅ |
 | 2.4 | 完整交互：看对话、发消息、停轮次、答审批/提问 | ✅ |
 | 2.5 | 通知带审批按钮（"允许一次 / 拒绝"，不打开 APP 直接批） | ✅ 用户确认要做 |
-| 2.6 | 单机使用（仅 v2309a，不做配对机制） | ✅ 用户确认 |
+| 2.6 | 单机使用（仅 <phone-model>，不做配对机制） | ✅ 用户确认 |
 | 2.7 | 界面中文 | ✅ 用户确认 |
 | 2.8 | v1 不做：模型配置页、文件/图片上传、语音、服务端改动 | ✅ |
 
@@ -105,7 +105,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
   WebView/OkHttp 走系统信任链**零配置受信**，无需安装任何根证书（v1.0 的"tailnet CA"
   表述有误，已修正）。
 - 本机当前无 JDK17 / Android SDK / Gradle（仅 JRE 8），需自动安装构建链。
-- 手机 v2309a 已装 Tailscale 且与 PC 直连活跃。
+- 手机 <phone-model> 已装 Tailscale 且与 PC 直连活跃。
 
 ### 3.5 Android 平台约束（评审新增）
 
@@ -122,7 +122,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 ## 4. 总体架构
 
 ```
-┌────────────────────────── 手机 (v2309a) ──────────────────────────┐
+┌────────────────────────── 手机 (<phone-model>) ──────────────────────────┐
 │                                                                    │
 │  ┌────────────── UI 层（原生 Kotlin + Jetpack Compose）────────┐ │
 │  │  会话列表页（三态分组）   对话页（原生 Compose 会话渲染）   设置页   │ │
@@ -580,7 +580,7 @@ tools/setup_build_env.ps1 步骤:
 | 协议反序列化 | JVM 单测（kotlinx-serialization 对真实帧 JSON 样例） | 信封+帧全类型、rpcId 取信封层、畸形帧容错、not-pending 回执解析 |
 | 通知状态机 | JVM 单测（注入帧序列，断言通知调用） | 冷启动抑制 / **断连重连补发（P1 修正后预期=补发）** / cancel 抑制窗 / subagent 过滤 / approvalId 去重（replay 不重响）/ running 恢复撤通知 |
 | ApiClient | JVM 单测 + MockWebServer | 信封格式、错误分支、超时、回执三态（Accepted/NotPending/BadResponse） |
-| 端到端 | 真机 v2309a 手测清单 | 首启权限申请、息屏收通知、审批按钮免开 APP、not-pending 撤通知、列表三态与 blank 隐藏、WebView 排版、改地址生效 |
+| 端到端 | 真机 <phone-model> 手测清单 | 首启权限申请、息屏收通知、审批按钮免开 APP、not-pending 撤通知、列表三态与 blank 隐藏、WebView 排版、改地址生效 |
 
 语言一致性：全部 Kotlin + kotlin.test，不混其他语言。
 

@@ -7,14 +7,14 @@ DSH Mobile 是 DeepSeek Harness（DSH）的安卓远程客户端：在手机上�
 
 | 项 | 要求 |
 |---|---|
-| 手机 | Android 8.0（API 26）及以上；目标机 vivo v2309a |
+| 手机 | Android 8.0（API 26）及以上；任意 Android 8.0+ 设备 |
 | PC | 运行 `dsh web`（监听 127.0.0.1:3080），并已 `tailscale serve` 发布到 `https://<PC-name>.tailnet.ts.net` |
 | 组网 | 手机与 PC 同一 tailnet（手机装 Tailscale 并保持 VPN 开启） |
 
 ## 安装
 
 APK 位置（发布版，默认安装包）：`<repo>\app\build\outputs\apk\release\DSH-Mobile-release-v<version>.apk`（约 2.5 MB，R8 混淆 + 正式签名）。
-debug 版（模拟器 UI 验证用）在 `<repo>\app\build\outputs\apk\debug\app-debug.apk`。
+debug 版（模拟器 UI 验证用）在 `<repo>\app\build\outputs\apk\debug\DSH-Mobile-debug-v<version>.apk`。
 
 方式一（USB 连手机后执行）：
 > ⚠️ debug 版与 release 版**签名不同**，混用不可 `-r` 覆盖升级（报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`）——要从 debug 换 release（或反之）先卸载旧包再装。
