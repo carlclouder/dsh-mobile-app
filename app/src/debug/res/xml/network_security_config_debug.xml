@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug-only 网络策略：允许明文 HTTP（模拟器 E2E：10.0.2.2/127.0.0.1 直连宿主 DSH）。
+     release 构建不引用本文件，保持平台默认（禁明文）。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

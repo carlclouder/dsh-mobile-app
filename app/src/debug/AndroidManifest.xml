@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug-only 覆盖：合并进 debug 构建的 AndroidManifest（release 不含此文件） -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 模拟器测试需要明文 HTTP（http://10.0.2.2:3080 NAT 直连宿主 DSH）。
+         网络策略见 res/xml/network_security_config_debug.xml：仅 debug 放开明文。
+         release 构建无此覆盖 → 保持平台默认（禁明文），正式走 tailscale HTTPS 不受影响。 -->
+    <application android:networkSecurityConfig="@xml/network_security_config_debug" />
+</manifest>
