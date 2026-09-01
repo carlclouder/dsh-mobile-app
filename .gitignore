@@ -1,0 +1,33 @@
+# Build outputs
+build/
+app/build/
+
+# Gradle cache
+.gradle/
+
+# Local build toolchain (JDK17 / Android SDK / Gradle, installed by tools/setup_build_env.ps1)
+.toolchain/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Machine-local config (SDK path; encoding-fragile with CJK project path, env vars used instead)
+local.properties
+
+# Auto-bumped version state (changes on every assemble build)
+app/version.properties
+
+# Release signing (keystore + passwords must never be committed)
+keystore/
+
+# Personal deployment config (private server hostname etc; neutral fallbacks when absent)
+app/personal.properties
+
+# Private deployment info (real tailnet domain/IP/account — never commit)
+docs/private/
