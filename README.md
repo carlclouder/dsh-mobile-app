@@ -2,6 +2,10 @@
 
 DSH Mobile 是为 [DeepSeek Harness](https://github.com)（DSH）打造的**安卓远程客户端**：你在家里电脑上运行 DSH（AI 对话工作台），用一部手机，无论用 4G/5G 还是公司/酒店 WiFi，都能加密接入——看会话列表、息屏收通知、免开 App 直接批审批、进会话对话。
 
+| 会话列表 | 对话页 | 模型选择 | 设置 |
+|:---:|:---:|:---:|:---:|
+| ![会话列表](docs/screenshots/demo_session_list.png) | ![对话页](docs/screenshots/demo_conversation.png) | ![模型选择](docs/screenshots/demo_model_picker.png) | ![设置](docs/screenshots/demo_settings_page.png) |
+
 **本指南面向零基础用户，从"电脑怎么配"到"手机怎么装、怎么用"全流程讲清。** 整套方案用 **Tailscale 加密组网**，不暴露公网，安全可靠。
 
 > 如果你是开发者想重新构建/测试 App，工程细节见文末「构建与测试」。
