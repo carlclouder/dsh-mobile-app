@@ -1,6 +1,6 @@
 # DSH Mobile —— 手机远程访问 DSH 完整指南
 
-DSH Mobile 是为 [DeepSeek Harness](https://github.com)（DSH）打造的**安卓远程客户端**：你在家里电脑上运行 DSH（AI 对话工作台），用一部手机，无论用 4G/5G 还是公司/酒店 WiFi，都能加密接入——看会话列表、息屏收通知、免开 App 直接批审批、进会话对话。
+DSH Mobile 是为 DeepSeek Harness（DSH）打造的**安卓远程客户端**：你在家里电脑上运行 DSH（AI 对话工作台），用一部手机，无论用 4G/5G 还是公司/酒店 WiFi，都能加密接入——看会话列表、息屏收通知、免开 App 直接批审批、进会话对话。
 
 | 会话列表 | 对话页 | 模型选择 | 设置 |
 |:---:|:---:|:---:|:---:|
@@ -216,7 +216,7 @@ $env:ANDROID_HOME="D:\dshm\.toolchain\android-sdk"
 
 - `assembleRelease`：发布版（R8 混淆 + 正式签名）。**日常交付只装这个。**
 - `assembleDebug`：调试版（仅模拟器 UI 验证用，app 里连 `10.0.2.2`）。
-- `testDebugUnitTest`：单测（当前 62/62 绿）。
+- `testDebugUnitTest`：单测（当前 90/90 绿）。
 
 ### 产物（输出到项目下的标准路径）
 ```
@@ -236,7 +236,7 @@ $env:ANDROID_HOME="D:\dshm\.toolchain\android-sdk"
 | 网络 | OkHttp 4.12.0（REST + WebSocket 双通道） |
 | 序列化 | kotlinx-serialization-json 1.7.3 |
 | 存储 | DataStore Preferences 1.1.1 |
-| Markdown 渲染 | jeziellago/compose-markdown 0.7.2（表格/图片/代码块） |
+| Markdown 渲染 | jeziellago/compose-markdown 0.7.2（图片/代码块；表格暂不支持） |
 | 构建 | Gradle 8.9 / AGP 8.6.1 |
 | SDK | minSdk 26 / targetSdk 35 / compileSdk 35 |
 | 单测 | Kotlin test + MockWebServer |
