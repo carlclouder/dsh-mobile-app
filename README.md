@@ -1,233 +1,229 @@
-# DSH Mobile —— 手机远程访问 DSH 完整指南
+# DSH Mobile — 从零到用的完整部署指南
 
-DSH Mobile 是为 DeepSeek Harness（DSH）打造的**安卓远程客户端**：你在家里电脑上运行 DSH（AI 对话工作台），用一部手机，无论用 4G/5G 还是公司/酒店 WiFi，都能加密接入——看会话列表、息屏收通知、免开 App 直接批审批、进会话对话。
+> **这是什么**：DSH Mobile 是一个安卓 App，让你用手机远程访问电脑上运行的 [DeepSeek Harness](https://github.com)（AI 对话工作台）。手机和电脑之间通过 Tailscale 加密隧道连接，不暴露公网。
 
 | 会话列表 | 对话页 | 模型选择 | 设置 |
 |:---:|:---:|:---:|:---:|
 | ![会话列表](docs/screenshots/demo_session_list.png) | ![对话页](docs/screenshots/demo_conversation.png) | ![模型选择](docs/screenshots/demo_model_picker.png) | ![设置](docs/screenshots/demo_settings_page.png) |
 
-**本指南面向零基础用户，从"电脑怎么配"到"手机怎么装、怎么用"全流程讲清。** 整套方案用 **Tailscale 加密组网**，不暴露公网，安全可靠。
+---
 
-> 如果你是开发者想重新构建/测试 App，工程细节见文末「构建与测试」。
+## 整体架构（1 分钟看懂）
+
+```
+你的手机（4G/5G/任何WiFi）
+   │
+   │  Tailscale 加密隧道（免费，类似VPN）
+   ▼
+你的电脑（家里/办公室）
+   │
+   │  Tailscale Serve 反向代理（自动HTTPS）
+   ▼
+DSH 工作台（运行在电脑的 127.0.0.1:3080）
+```
+
+**你需要准备**：
+| 设备 | 要求 |
+|---|---|
+| 电脑（Windows） | 能上网，已安装 Node.js |
+| 手机（Android） | Android 8.0 以上 |
 
 ---
 
-## 一、这套方案长什么样
+## 第一步：电脑端安装 Tailscale（约 5 分钟）
 
-外网手机 ↔ 家里电脑 DSH 之间是一条加密通道：
+### 1.1 下载安装
 
-```
-手机（4G/5G/任意WiFi）
-   │  Tailscale 加密隧道（WireGuard，私有网络）
-   ▼
-家里电脑 Tailscale 网卡
-   │  Tailscale Serve 反向代理（自动 HTTPS 证书）
-   ▼
-DSH 工作台（运行在 127.0.0.1:3080）
+到 [tailscale.com/download](https://tailscale.com/download) 下载 Windows 版，双击安装。
+
+或用命令安装：
+```powershell
+winget install Tailscale
 ```
 
-| 项目 | 值 |
-|------|-----|
-| 手机访问地址 | **`https://<PC-name>.tailnet.ts.net`** |
-| Tailscale 网络 | `<tailnet>.ts.net` |
-| 统一账号 | `<your-tailscale-account>`（手机、电脑都用这个） |
-| 电脑 Tailscale IP | `<PC-Tailscale-IP>` |
-| 手机 Tailscale IP | `<Phone-Tailscale-IP>` |
-| DSH 实例 | 电脑上 `127.0.0.1:3080`（本地与手机共用同一实例） |
+### 1.2 注册并登录
 
-**安全说明**：只有登录了同一 Tailscale 账号（`<your-tailscale-account>`）的设备才能访问；全程 WireGuard 加密 + HTTPS 证书；DSH 只监听本机回环地址，不暴露公网/局域网。
+1. 打开 Tailscale 客户端
+2. 点击 **Log in**
+3. 选择 **Sign up with email**（⚠️ 不要用 Google/Apple 登录，会创建独立网络导致手机连不上）
+4. 输入你的邮箱，设置密码
+5. 登录成功后，任务栏右下角会出现 Tailscale 图标
 
----
+**验证**：打开命令行，执行：
+```powershell
+tailscale status
+```
+应该看到你的电脑名和 IP（类似 `100.x.x.x`）。
 
-## 二、主机端：安装配置（一次做好，以后全自动）
+### 1.3 发布 DSH 到手机可访问的地址
 
-> 这部分是在 **家里电脑** 上做的，做好后电脑开机登录即自动就绪，手机随时可连。
-
-### 1. 安装并登录 Tailscale
-
-1. 到 [Tailscale 官网](https://tailscale.com/download) 下载 Windows 客户端并安装（或 `winget install tailscale`）。
-2. 启动 Tailscale，登录账号选 **邮箱** 方式，输入 `<your-tailscale-account>`。
-   - ⚠️ **不要**用 Google / Apple / 微软快捷登录（会创建不同的独立网络，手机连不上电脑）。
-3. 登录后，电脑右下角状态栏会出现 Tailscale 图标，表示已加入 `<tailnet>.ts.net` 网络。
-
-### 2. 用 Tailscale Serve 发布 DSH
-
-DSH 只在电脑本机的 `127.0.0.1:3080` 监听。要让手机能访问，用 Tailscale 内置的反向代理把它转成一个 HTTPS 域名：
+执行以下命令，把电脑上的 DSH 端口发布为 HTTPS 域名：
 
 ```powershell
 tailscale serve --bg --https=443 http://127.0.0.1:3080
 ```
 
-执行后确认发布成功：
-
+**查看你的专属域名**：
 ```powershell
 tailscale serve status
-# 期望输出： https://<PC-name>.tailnet.ts.net (tailnet only)
-#            |-- / proxy http://127.0.0.1:3080
+```
+输出类似：
+```
+https://你的电脑名.你的网络名.ts.net (tailnet only)
+|-- / proxy http://127.0.0.1:3080
 ```
 
-> 说明：`<PC-name>.<tailnet>.ts.net` 这个域名是 Tailscale 自动生成的（电脑设备名 + 网络名），证书自动签发，只在 tailnet 内可达，公网不可见。
+**把 `https://` 后面的整段域名记下来**，后面要用（形如 `my-pc.tailabcd.ts.net`）。
 
-**以后要临时关闭/重开远程访问**：
+---
+
+## 第二步：电脑端启动 DSH（关键：必须带 --trusted-host）
+
+> ⚠️ **这是最容易踩坑的一步**。DSH 有安全栏栅，只信任回环地址和显式指定的域名。
+> 不带 `--trusted-host` 参数启动，手机 App 会收到 **403 Forbidden** 错误。
+
+### 2.1 启动 DSH
+
 ```powershell
-tailscale serve --https=443 off                # 关闭（手机立即无法访问）
-tailscale serve --bg --https=443 http://127.0.0.1:3080   # 重新开启
+dsh web --host 127.0.0.1 --port 3080 --no-open --trusted-host 你的电脑名.你的网络名.ts.net
 ```
 
-### 3. 让 DSH 开机自启
+> 把 `你的电脑名.你的网络名.ts.net` 替换为第一步 1.3 中记下的域名。
 
-DSH（`dsh web`）也要能开机自启，否则电脑重启后手机就连不上。已配置好的方式是**启动文件夹脚本**（每次登录自动拉起）：
+### 2.2 验证启动成功
 
-- 路径：`C:\Users\<user>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\DSH-WebUI-AutoStart.bat`
-- 脚本会自动：检查 Tailscale 服务（没运行就启动）→ 检查 Tailscale Serve 转发（丢了就恢复）→ 检查 3080 端口（没有服务就拉起 `dsh web`）。
+浏览器打开 `http://127.0.0.1:3080`，能看到 DSH 界面即成功。
 
-如果电脑上还没这个脚本，你可以手动启动 DSH：
+再用命令验证手机通道：
 ```powershell
-# 在 DSH 安装目录（或你的项目目录）执行
-dsh web
-# 浏览器打开 http://127.0.0.1:3080 确认能进 DSH 界面
+curl -s -o NUL -w "%{http_code}" https://你的电脑名.你的网络名.ts.net
+```
+输出 `200` = 手机可以访问 ✅
+输出 `403` = 忘了带 `--trusted-host` ❌
+
+<details>
+<summary>📋 开机自启配置（推荐，一次配好）</summary>
+
+创建 `C:\Users\你的用户名\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\DSH-AutoStart.bat`：
+
+```bat
+@echo off
+chcp 65001 >nul
+rem 检查 Tailscale
+sc query Tailscale | findstr "RUNNING" >nul 2>&1 || net start Tailscale
+rem 恢复 serve
+tailscale serve --bg --https=443 http://127.0.0.1:3080 2>nul
+rem 启动 DSH（检查端口是否已有服务）
+netstat -ano | findstr "127.0.0.1:3080" | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 (
+    start /b cmd /c dsh web --host 127.0.0.1 --port 3080 --no-open --trusted-host 你的电脑名.你的网络名.ts.net
+)
 ```
 
-> 电脑端也准备了桌面脚本方便手动管理：`启动DSH-WebUI.bat` / `停止DSH-WebUI.bat` / `重启DSH-WebUI.bat`（如有）。
-
-### 4. 验证主机端就绪
-
-在电脑浏览器打开 `http://127.0.0.1:3080`，应能进入 DSH Web 界面。这一步也就是「主机端装好了」。
-
-> **电脑开机登录后，手机直接访问即可，无需再手动操作。** 若防火墙提示，允许 Tailscale 通过即可。
+替换域名后保存。每次开机登录会自动就绪。
+</details>
 
 ---
 
-## 三、手机端：安装 DSH Mobile App
+## 第三步：手机端安装（约 3 分钟）
 
-> 建议直接装 **DSH Mobile 原生 App**（体验最好：息屏通知、免开 App 批审批、三态列表、流式对话）。浏览器方案 `https://<PC-name>.tailnet.ts.net` 仍可用作备用。
+### 3.1 安装 Tailscale App
 
-### 1. 获取 APK
+1. 应用商店搜索 **Tailscale** 安装（或到 [tailscale.com/download](https://tailscale.com/download) 下载 APK）
+2. 打开 → 登录 → **用和电脑相同的邮箱账号**
+3. 顶部开关打开 → 允许 VPN 连接
+4. 状态栏出现 **钥匙图标** = 已连接
 
-最新构建产物在**电脑上**这个固定路径（每次打包都会自动更新到这里）：
+> ⚠️ 手机和电脑**必须登录同一个 Tailscale 账号**，否则互相看不到。
 
-```
-<repo>\app\build\outputs\apk\release\DSH-Mobile-release-v<版本>.apk
-```
+### 3.2 安装 DSH Mobile App
 
-取出这个 APK，传到手机（任选其一）：
-- **微信 / QQ 文件传输助手**：发给自己，手机端保存到下载目录；
-- **USB 数据线**：手机连电脑，把 APK 拷到手机存储；
-- **局域网共享 / 网盘**。
+1. 从 [Releases](../../releases) 下载最新 `DSH-Mobile-release-*.apk`
+2. 传到手机（微信文件传输助手 / USB / 网盘均可）
+3. 手机文件管理器点击 APK 安装（需允许"安装未知来源应用"）
 
-> 手机只需 **Android 8.0 及以上**。
+### 3.3 首次启动（3 件事）
 
-### 2. 安装 APK
+| 步骤 | 操作 | 为什么 |
+|---|---|---|
+| ① 允许通知 | 系统弹窗点"允许" | 否则收不到任何提醒 |
+| ② 填服务器地址 | 设置 → 服务器地址 → 填第一步记下的域名 → 保存 | 告诉 App 连哪台电脑 |
+| ③ 关电池优化 | 设置 → 电池优化 → 去系统设置 → 设为"不受限" | 否则安卓杀后台，息屏收不到通知 |
 
-手机文件管理器找到这个 APK → 点击安装。若提示「允许安装未知来源应用」，按提示允许即可。
-
-### 3. 安装 Tailscale App（重要）
-
-App 连电脑走的是 Tailscale 隧道，所以**手机上也要装 Tailscale**：
-
-1. 在应用商店 / [Tailscale 官网](https://tailscale.com/download) 下载 **Tailscale** 安卓版并安装；
-2. 打开 → 登录 → **邮箱**方式 → 输入 `<your-tailscale-account>`；
-3. 顶部开关打开 → 系统弹「VPN 连接请求」→ 允许；
-4. 状态栏出现**钥匙图标** = Tailscale 已连接。
-
-> ⚠️ Tailscale 必须保持连接（钥匙图标在），否则 App 连不上电脑。
+**验证**：首页顶部显示 **「已连接」** ✅
 
 ---
 
-## 四、手机端：首次使用（3 件事，别漏）
+## 常见问题
 
-1. **允许通知**：打开 DSH Mobile，系统弹「允许通知」→ **点允许**（否则收不到任何回合/审批/提问提醒）。
-2. **确认已连接**：首页顶部状态条显示 **「已连接」** = 成功；显示 **「不可达」** = Tailscale 没开或电脑不在线（排查见「六、常见问题」）。
-3. **关闭电池优化限制**：App 设置页 →「电池优化 → 去系统设置」→ 把 DSH Mobile 设为**不受限**。这一步很关键——安卓省电机制会杀后台服务，不设会导致息屏收不到通知。
+### Q1：App 显示「不可达」
 
-> 服务器地址默认就是 `https://<PC-name>.tailnet.ts.net`，一般无需改。如改了别的地方，可到「设置 → 服务器地址」恢复/修改后点「测试连接」。
+按顺序检查：
+1. 手机 Tailscale 开了吗？（状态栏要有钥匙图标）
+2. 手机能上网吗？
+3. 电脑开机且 Tailscale 在跑吗？（电脑执行 `tailscale status` 看输出）
+4. 电脑上 3080 端口有服务吗？（电脑执行 `netstat -ano | findstr ":3080"`）
+5. `--trusted-host` 带了吗？（电脑浏览器打开 `https://你的域名` 看是否 200）
 
----
+### Q2：连接正常但会话列表为空
 
-## 五、手机端：日常使用
+正常现象：列表默认隐藏空白会话。在电脑上和某个会话对话后，下拉刷新 App 列表即可。
 
-### 会话列表（首页）
-- **三段分组**（一眼看清全局）：
-  - **跑动中**（绿点）= agent 正在干活；
-  - **等你输入**（琥珀点）= 这轮跑完，等你说话；
-  - **空闲**（灰点）= 很久没有新提问的旧会话。
-- 点任意会话 → 进入对话页；右下角 **+** → 在所选工作区新建会话（**创建后自动进入新会话**）。
-- 下拉列表可手动刷新；顶部「工作区 ▾/▴」可折叠切换工作区。
-- **会话操作**：每个会话行尾有 **⋮** 按钮，可：
-  - **重命名**（改标题）、**分叉会话**（从当前会话分出新的子会话，并自动跳转过去）、**归档会话**（从列表隐藏）。操作后列表**即时刷新**。
+### Q3：换 Tailscale 账号后连不上了
 
-### 对话页（原生）
-- **流式输出**：agent 回复实时逐字出现，跟电脑上一样。
-- **语音输入**：输入框旁 🎤 点一下说话识别；无识别服务的设备会提示改用键盘。
-- **停止**：顶条「停止」可中断当前回合。
-- **模型选择**：顶条 `◆ provider/model` → 底部弹层，模型与思考等级分开选。
-- **消息体验**：长按可复制、带时间戳、Markdown 渲染（标题/表格/加粗/代码块/列表/图片）。
-- **自适应折叠**：思考过程、工具参数、工具结果过长会自动折叠（点「展开 ▴」），不占屏；超长消息有「展开全文▴」。
-- **跳到底部**：上翻列表时右下角出现「⬇ 跳到底部」按钮，点击一键回到最新消息并恢复自动滚动（在底部时自动隐藏）。
-- **插话**：agent **运行中**时，排队消息可点 **⚡插话**，host 会在下一步边界尽快把该条注入当前轮次；agent 空闲时按钮置灰（仅运行中可插话，直接发新消息即可开始新一轮）。插话成功后该条从排队列表消失、尽快注入对话流。
+每个 Tailscale 账号 = 独立的私有网络，换账号后域名会变：
 
-### 通知（核心，息屏也能收）
-| 通知 | 含义 | 你能做的事 |
-|------|------|-----------|
-| 回合完成，等待你的输入 | agent 跑完一轮 | 点按进对话页 |
-| 审批请求：\<工具名\> | agent 请求做敏感操作 | **直接在通知上点「允许一次 / 拒绝」**，不用打开 App |
-| Agent 提问 | agent 向你提问 | 点按进对话页答题 |
+1. 电脑：`tailscale serve status` 查看新域名
+2. 电脑：用新域名重启 `dsh web --trusted-host 新域名`
+3. 手机：Tailscale 登录新账号
+4. 手机：App 设置页改服务器地址为新域名
 
-- 前台服务常驻（顶栏有「DSH 监听中」的常驻通知，属正常，勿清退）。
-- 三类通知开关在「设置」里独立控制。
+### Q4：收不到通知
+
+1. 系统通知权限开了吗？（设置 → 应用 → DSH Mobile → 通知）
+2. 电池优化加白了吗？（App 设置页 → 电池优化 → 去系统设置）
+3. Tailscale 在线吗？
+4. App 设置里的三类通知开关开了吗？
+
+### Q5：语音输入不可用
+
+部分国产手机无谷歌语音服务。App 会自动降级到系统"识别活动"通道（由手机厂商/讯飞等接管）。如果仍不行，用输入法自带的麦克风语音输入。
+
+### Q6：每次装新版要卸载吗？
+
+同签名（release→release）直接覆盖装。不同签名（debug↔release）必须先卸载。
 
 ---
 
-## 六、常见问题排查
-
-**Q1：手机 App 显示「不可达」**
-按顺序：① 手机 Tailscale 开关开了吗（状态栏要有钥匙图标）→ ② 手机能上网吗（先开浏览器试）→ ③ 家里电脑开机且 Tailscale 在跑吗 → ④ 电脑上 3080 活着吗（`netstat -ano | findstr ":3080"`，有 LISTENING = 正常）。
-
-**Q2：收不到通知**
-① 系统通知权限是否开启（设置 → 应用 → DSH Mobile → 通知）→ ② 电池优化是否把 App 杀了（去设置页加白）→ ③ Tailscale 是否在线 → ④ 三类通知开关是否被误关。
-
-**Q3：App 显示已连接但会话列表空**
-正常：列表默认隐藏空白会话和子代理会话，有真实对话的会话才会出现。下拉刷新即可。
-
-**Q4：锁屏后连不上**
-安卓省电机制会挂起后台 VPN，**解锁屏幕后重试**即可；可在系统设置里给 Tailscale App 开「无限制后台/电池不优化」。
-
-**Q5：换新手机**
-新手机装 Tailscale App → 登录 `<your-tailscale-account>` → 再装 DSH Mobile App，即可连同一个地址。
-
-**Q6：装了 App 仍提示「不可达」，但浏览器能打开 `https://<PC-name>.tailnet.ts.net` 吗？**
-若浏览器能开而 App 不能，通常是 App 的服务器地址被改过——到「设置 → 服务器地址」确认是 `https://<PC-name>.tailnet.ts.net`，点「测试连接」。
-
----
-
-## 七、构建与测试（开发者）
+## 构建（开发者）
 
 ### 前置工具
-JDK 17、Android SDK（`platform-tools` + `android-35` + `build-tools;35.0.0`）、Gradle 8.9。可用 `tools/setup_build_env.ps1` 一键装到 `.toolchain/`。
 
-> ⚠️ **必须从 ASCII 路径构建**：项目真实路径含中文（`<repo>\`），AGP 会拒绝中文路径。用 ASCII 联接目录 **`D:\dshm`**（指向本项目），并设 `android.overridePathCheck=true`（gradle.properties 已配置）、不写 `local.properties`。
+JDK 17、Android SDK、Gradle 8.9。可用 `tools/setup_build_env.ps1` 一键安装到 `.toolchain/`。
 
-### 构建命令
+> ⚠️ 必须从 ASCII 路径构建。项目路径含中文时，用 ASCII 联接目录（如 `D:\dshm` → 指向项目），`android.overridePathCheck=true` 已配置。
+
+### 命令
+
 ```powershell
 $env:JAVA_HOME="D:\dshm\.toolchain\jdk17"
 $env:ANDROID_HOME="D:\dshm\.toolchain\android-sdk"
 & "D:\dshm\.toolchain\gradle-8.9\bin\gradle.bat" -p "D:\dshm" --no-daemon assembleRelease
 ```
 
-- `assembleRelease`：发布版（R8 混淆 + 正式签名）。**日常交付只装这个。**
-- `assembleDebug`：调试版（仅模拟器 UI 验证用，app 里连 `10.0.2.2`）。
-- `testDebugUnitTest`：单测（当前 90/90 绿）。
+产物：`app\build\outputs\apk\release\DSH-Mobile-release-v<版本>.apk`
 
-### 产物（输出到项目下的标准路径）
-```
-<repo>\app\build\outputs\apk\release\DSH-Mobile-release-v<版本>.apk
+### 单元测试
+
+```powershell
+& "D:\dshm\.toolchain\gradle-8.9\bin\gradle.bat" -p "D:\dshm" --no-daemon testDebugUnitTest
 ```
 
-> 版本号每次 assemble 自动 +1（`app/version.properties`，git 忽略）。你只需装 `release` 目录下的 `DSH-Mobile-release-v<版本>.apk`，**不要**装 debug 版（那是给模拟器验证用的）。
+当前 90/90 绿。
 
 ---
 
-## 八、技术栈
+## 技术栈
 
 | 层 | 选型 |
 |---|---|
@@ -236,15 +232,19 @@ $env:ANDROID_HOME="D:\dshm\.toolchain\android-sdk"
 | 网络 | OkHttp 4.12.0（REST + WebSocket 双通道） |
 | 序列化 | kotlinx-serialization-json 1.7.3 |
 | 存储 | DataStore Preferences 1.1.1 |
-| Markdown 渲染 | jeziellago/compose-markdown 0.7.2（图片/代码块；表格暂不支持） |
+| Markdown | jeziellago/compose-markdown 0.7.2（图片/代码块；表格暂不支持） |
 | 构建 | Gradle 8.9 / AGP 8.6.1 |
-| SDK | minSdk 26 / targetSdk 35 / compileSdk 35 |
+| SDK | minSdk 26 / targetSdk 35 |
 | 单测 | Kotlin test + MockWebServer |
 
 ---
 
-## 说明
+## 相关文档
 
-- **单机单用户设计**（无配对/多账户）；模型管理、会话配置以 PC 端 DSH 为权威源。
-- `app/version.properties`、`keystore/`（release 签名与密码）均在 `.gitignore` 内，不随仓库泄露。
-- 详细使用步骤另见 [USAGE.md](USAGE.md)；技术设计见 [docs/DESIGN.md](docs/DESIGN.md)；进度台账见 [PROGRESS.md](PROGRESS.md)。
+- [USAGE.md](USAGE.md) — 完整功能使用说明
+- [docs/DESIGN.md](docs/DESIGN.md) — 技术设计文档
+- [PROGRESS.md](PROGRESS.md) — 开发进度台账
+
+## 许可证
+
+[MIT](LICENSE)
