@@ -446,10 +446,9 @@ private fun ContextInjectionRow(msg: UiMessage) {
             .padding(horizontal = 12.dp, vertical = 2.dp),
     ) {
         Surface(
-            onClick = { expanded = !expanded },
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
             shape = MaterialTheme.shapes.small,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -492,21 +491,20 @@ private fun ToolCallCard(tc: dev.dshmobile.model.ConversationEvent.ToolCall) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small,
-        onClick = { expanded = !expanded },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp),
+        modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 0.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 0.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🔧", fontSize = 12.sp, lineHeight = 14.sp)
+                Text("🔧", fontSize = 12.sp, lineHeight = 13.sp)
                 Spacer(Modifier.width(4.dp))
-                Text(tc.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(tc.name, fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 // 单行参数摘要（截断省略），展开后由下方完整参数替代
                 if (!expanded) {
                     Text(
                         toolCallSummary(tc),
                         fontSize = 11.sp,
-                        lineHeight = 13.sp,
+                        lineHeight = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -515,13 +513,13 @@ private fun ToolCallCard(tc: dev.dshmobile.model.ConversationEvent.ToolCall) {
                     )
                 } else {
                     Spacer(Modifier.weight(1f))
-                    Text("收起 ▾", fontSize = 11.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("收起 ▾", fontSize = 11.sp, lineHeight = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (expanded) {
                 tc.arguments?.takeIf { it.isNotBlank() }?.let { args ->
-                    Spacer(Modifier.height(4.dp))
-                    Text(args, fontSize = 11.sp, lineHeight = 13.sp, fontFamily = FontFamily.Monospace,
+                    Spacer(Modifier.height(2.dp))
+                    Text(args, fontSize = 11.sp, lineHeight = 12.sp, fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -606,19 +604,18 @@ private fun CollapsibleToolResult(display: ConversationViewModel.ToolResultDispl
     Surface(
         color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small,
-        onClick = { expanded = !expanded },
-        modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 0.dp),
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 0.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 0.dp)) {
             Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (isError) "⚠ 工具结果" else "🔧 工具结果", fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold)
+                Text(if (isError) "⚠ 工具结果" else "🔧 工具结果", fontSize = 12.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(6.dp))
                 // 单行摘要：宿主 view.title 优先，兜底正文首行
                 if (!expanded) {
                     Text(
                         resultOneLine(display),
                         fontSize = 11.sp,
-                        lineHeight = 13.sp,
+                        lineHeight = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -626,7 +623,7 @@ private fun CollapsibleToolResult(display: ConversationViewModel.ToolResultDispl
                     )
                 } else {
                     Spacer(Modifier.weight(1f))
-                    Text("收起 ▾", fontSize = 11.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("收起 ▾", fontSize = 11.sp, lineHeight = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (expanded) {
