@@ -452,14 +452,15 @@ private fun ContextInjectionRow(msg: UiMessage) {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (isRecall) "🔄" else "📥", fontSize = 12.sp)
+                Text(if (isRecall) "🔄" else "📥", fontSize = 12.sp, lineHeight = 14.sp)
                 Spacer(Modifier.width(6.dp))
                 Text(
                     if (isRecall) "跨会话召回" else "上下文注入",
                     fontSize = 12.sp,
+                    lineHeight = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -468,6 +469,7 @@ private fun ContextInjectionRow(msg: UiMessage) {
                     Text(
                         "· $label",
                         fontSize = 12.sp,
+                        lineHeight = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -491,19 +493,20 @@ private fun ToolCallCard(tc: dev.dshmobile.model.ConversationEvent.ToolCall) {
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small,
         onClick = { expanded = !expanded },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 0.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🔧", fontSize = 12.sp)
+                Text("🔧", fontSize = 12.sp, lineHeight = 14.sp)
                 Spacer(Modifier.width(4.dp))
-                Text(tc.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(tc.name, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 // 单行参数摘要（截断省略），展开后由下方完整参数替代
                 if (!expanded) {
                     Text(
                         toolCallSummary(tc),
                         fontSize = 11.sp,
+                        lineHeight = 13.sp,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -512,13 +515,13 @@ private fun ToolCallCard(tc: dev.dshmobile.model.ConversationEvent.ToolCall) {
                     )
                 } else {
                     Spacer(Modifier.weight(1f))
-                    Text("收起 ▾", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("收起 ▾", fontSize = 11.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (expanded) {
                 tc.arguments?.takeIf { it.isNotBlank() }?.let { args ->
                     Spacer(Modifier.height(4.dp))
-                    Text(args, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                    Text(args, fontSize = 11.sp, lineHeight = 13.sp, fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -580,7 +583,7 @@ private fun CollapsibleThinking(content: String, streaming: Boolean = false) {
     Text(
         if (expanded) content else "💭 思考过程 · 点按展开",
         fontSize = 11.sp,
-        lineHeight = 15.sp,
+        lineHeight = 13.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = if (expanded) Int.MAX_VALUE else 1,
         overflow = TextOverflow.Ellipsis,
@@ -604,17 +607,18 @@ private fun CollapsibleToolResult(display: ConversationViewModel.ToolResultDispl
         color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small,
         onClick = { expanded = !expanded },
-        modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 0.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)) {
             Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (isError) "⚠ 工具结果" else "🔧 工具结果", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (isError) "⚠ 工具结果" else "🔧 工具结果", fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(6.dp))
                 // 单行摘要：宿主 view.title 优先，兜底正文首行
                 if (!expanded) {
                     Text(
                         resultOneLine(display),
                         fontSize = 11.sp,
+                        lineHeight = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -622,7 +626,7 @@ private fun CollapsibleToolResult(display: ConversationViewModel.ToolResultDispl
                     )
                 } else {
                     Spacer(Modifier.weight(1f))
-                    Text("收起 ▾", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("收起 ▾", fontSize = 11.sp, lineHeight = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (expanded) {
@@ -826,7 +830,7 @@ private fun TimestampLine(timeMillis: Long) {    if (timeMillis <= 0) return
     val formatted = remember(timeMillis) {
         java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timeMillis))
     }
-    Text(formatted, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Text(formatted, fontSize = 10.sp, lineHeight = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = androidx.compose.ui.Modifier.padding(top = 1.dp))
 }
 
