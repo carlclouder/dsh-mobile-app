@@ -19,6 +19,8 @@
 
 ## ⚡ 当前断点（新轮次从这里继续，必读）
 
+**状态：v0.1.134 思考折叠行流式滚动摘要完成（2026-09-04）——需求"折叠态像 WebUI 一样单行横向滚动刷新最新末尾思考语句、区分思考与卡住"已实现并 E2E 实证。新增 ui/ThinkingStreamRow.kt（💭 思考中 + thinkingLatestLine 末行摘要 + horizontalScroll 钉尾 scrollTo(maxValue) + 2.6s 扫光光带 + ANIMATOR_DURATION_SCALE 减少动画尊重；ConversationActivity.CollapsibleThinking 加 streaming 参数，仅 STREAMING_KEY 占位消息走新行，落定/历史不变）。单测 101/101 绿（+11 ThinkingStreamLineTest：latestLine 7 + 扫光 clamp 4）；双包构建 v0.1.134。模拟器 E2E 三帧实证：思考增长期摘要贴尾→思考结束摘要更新（两帧文字不同均贴尾）+ 扫光光带可见 + 落定回退静态文案，截图 docs/screenshots/thinking_stream_e2e_1/2/settled.png。方案 docs/fix-thinking-stream-preview.md（两轮评审+代码评审通过）。未验证：流式中点按展开（代码路径同落定展开）、真机观感。注意：测试/构建必须走 D:\dshm ASCII 联接路径（中文原路径 Gradle 测试进程类加载全红，评审实证）。**
+
 **状态：v0.1.132 模型/代理调用错误展示修复完成并 E2E 实证（2026-09-01，待提交后清除本行状态）——host/agent-error 帧与 turn/end 错误原因渲染为会话内红色气泡「⚠ 模型调用错误」。E2E 方法：宿主历史含 2 次真实 429 额度错误（code 1310，zai 周/月配额），session.fork atSeq=177057 分叉出错误在末尾的会话，App 打开分叉实测：错误气泡标题+1310 全文渲染于对话底部（截图 e2e_v132_agent_error.png）。挂账新增：超大历史会话（21 万事件截尾 100 条）进入时首屏未自动贴底（需点跳到底部）——与既有滚底历史 bug 同类，待专项。**
 
 **状态：v0.1.130 三组修复验证完成（2026-08-31 凌晨）——①工具卡/结果卡 WebUI 对齐（宿主 view.view.title 单行摘要贯通 history+live 双管线，默认单行折叠点按展开；模拟器实测折叠态长正文节点 0、标题+摘要间距 6px）②重连自愈（成功连接重置退避+上限 60s→15s+前台 ON_RESUME 未连接即踢立即重连；模拟器断网→恢复 4 秒自动重连，无需重启）③语音输入降级通道（服务通道失败自动转 RECOGNIZE_SPEECH 识别活动由厂商/讯飞应用接管+manifest queries 可见性+错误码可确诊）。单测 90/90、双包构建。v0.1.126 已 commit(e147c10)，本批待真机复核后 commit。挂账不变：P1 仓库文档私人信息、表格/mermaid 渲染、P2 清单。**
