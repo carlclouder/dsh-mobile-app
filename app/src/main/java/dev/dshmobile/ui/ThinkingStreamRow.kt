@@ -133,7 +133,7 @@ internal fun ThinkingStreamRow(content: String, onExpand: () -> Unit, modifier: 
         Text(
             "💭 思考中",
             fontSize = 11.sp,
-            lineHeight = 15.sp,
+            lineHeight = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.width(6.dp))
@@ -159,7 +159,7 @@ private fun ThinkingStreamSummary(summary: String, modifier: Modifier = Modifier
         Text(
             text = summary,
             fontSize = 11.sp,
-            lineHeight = 15.sp,
+            lineHeight = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             softWrap = false,
