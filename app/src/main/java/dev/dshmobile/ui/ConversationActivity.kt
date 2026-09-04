@@ -159,8 +159,8 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 3.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 // 注：不传 key（默认索引键）——避免消息 key 重复导致 LazyColumn 崩溃（部分流式/回显状态下 key 会重复）
                 items(messages) { msg -> MessageBubble(msg) }
@@ -352,7 +352,7 @@ private fun MessageBubble(msg: UiMessage) {
                 horizontalArrangement = Arrangement.End,
             ) {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.widthIn(max = 300.dp).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                    Column(Modifier.widthIn(max = 300.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
                         CollapsibleMarkdownBody(msg.text, fontSizeSp = 15f)
                         TimestampLine(msg.timeMillis)
                     }
@@ -366,7 +366,7 @@ private fun MessageBubble(msg: UiMessage) {
                 // surfaceVariant(气泡) 与页面底色几乎同色（气泡边界不可见被感知成空白）——
                 // 现把页面底色调亮为 surface（见根布局 background），气泡与页面形成清晰对比。
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                    Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
                         msg.reasoning?.takeIf { it.isNotBlank() }?.let {
                             // 流式占位消息 → 折叠行走"钉尾滚动摘要"态（对齐 WebUI ReasoningRow）；
                             // 落定/历史消息保持原静态文案
@@ -374,18 +374,25 @@ private fun MessageBubble(msg: UiMessage) {
                                 it,
                                 streaming = msg.key == ConversationViewModel.STREAMING_KEY,
                             )
-                            Spacer(Modifier.height(3.dp))
+                            Spacer(Modifier.height(2.dp))
                         }
                         // 流式占位消息用纯文本渲染（修复"表格闪烁/错乱"）：AndroidView TextView
                         // 每 80ms 全量重排 markdown，表格在半成品语法期反复错乱重绘。落定
                         // （settled AssistantMessage 替换占位）后一次性渲染完整 markdown。
+                        // 空正文跳过渲染：空 TextView 仍占一行高度，是"思考行与工具卡之间大空隙"的来源。
                         if (msg.key == ConversationViewModel.STREAMING_KEY) {
-                            Text(msg.text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            if (msg.text.isNotEmpty()) {
+                                Text(msg.text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
                         } else {
-                            CollapsibleMarkdownBody(msg.text)
+                            if (msg.text.isNotBlank()) {
+                                CollapsibleMarkdownBody(msg.text)
+                            }
                         }
                         if (msg.toolCalls.isNotEmpty()) {
-                            Spacer(Modifier.height(6.dp))
+                            if (msg.text.isNotBlank() || msg.reasoning?.isNotBlank() == true) {
+                                Spacer(Modifier.height(4.dp))
+                            }
                             msg.toolCalls.forEach { tc -> ToolCallCard(tc) }
                         }
                         // 工具结果（已合并进本助手消息）：对齐 WebUI 紧凑渲染——默认单行（宿主
@@ -412,7 +419,7 @@ private fun MessageBubble(msg: UiMessage) {
                 verticalAlignment = Alignment.Top,
             ) {
                 Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 10.dp, vertical = 4.dp)) {
                         Text("⚠ 模型调用错误", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onErrorContainer)
                         Spacer(Modifier.height(3.dp))
@@ -819,7 +826,7 @@ private fun TimestampLine(timeMillis: Long) {    if (timeMillis <= 0) return
     val formatted = remember(timeMillis) {
         java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(timeMillis))
     }
-    Text(formatted, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Text(formatted, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = androidx.compose.ui.Modifier.padding(top = 1.dp))
 }
 
@@ -836,7 +843,40 @@ private fun MarkdownText(markdown: String, fontSizeSp: Float = 15f) {
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = fontSizeSp.sp,
         ),
-        isTextSelectable = true,
+        isTextSelectable = false,
+        // 紧凑排版（用户反馈"内部行间距/顶底留边太大"）：库内部是 AndroidView 包 TextView，
+        // Compose 的 TextStyle.lineHeight 传不进 TextView，必须在 afterSetMarkdown 回调里
+        // 直接调 TextView：①行距倍数 1.25（主流 IM 观感区间 1.25~1.3）；②关掉 includeFontPadding
+        // 削掉 TextView 默认的顶部字体空隙（顶底留边的元凶，约 2~3dp）。
+        // isTextSelectable=false（原 true）：可选中的 TextView 走编辑器模式会消费全部触摸，
+        // 导致气泡区域手指滑动无法滚动消息列表（实测整屏被表格气泡堵死翻不动）；
+        // 关掉后库自动改用 LinkMovementMethod——链接仍可点，垂直滑动放行给 LazyColumn。
+        // afterSetMarkdown 紧凑化收尾（markwon 渲染产物是不可变 SpannedString，需复制后处理再回写）：
+        // ① 行距 1.25 倍；② includeFontPadding=false 削顶部字体空隙；
+        // ③ 移除 markwon 的 HeadingSpan（其内部 MarkwonTheme.applyHeadingTextStyle 把标题放大到
+        //    1.6~2 倍并画分隔线，聊天气泡里爆版面），改用 加粗+1.15 倍 保留标题层级。
+        afterSetMarkdown = { textView ->
+            textView.setLineSpacing(0f, 1.25f)
+            textView.includeFontPadding = false
+            val orig = textView.text
+            if (orig != null && orig.isNotEmpty()) {
+                val s = android.text.SpannableStringBuilder(orig)
+                var changed = false
+                // markwon-core 是 jeziellago 的传递依赖（编译期不可见），按类名匹配 HeadingSpan
+                for (span in s.getSpans(0, s.length, java.lang.Object::class.java)) {
+                    if (span.javaClass.simpleName != "HeadingSpan") continue
+                    val start = s.getSpanStart(span)
+                    val end = s.getSpanEnd(span)
+                    s.removeSpan(span)
+                    s.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    s.setSpan(android.text.style.RelativeSizeSpan(1.15f), start, end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    changed = true
+                }
+                if (changed) textView.text = s
+            }
+        },
     )
 }
 
