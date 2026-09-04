@@ -368,7 +368,12 @@ private fun MessageBubble(msg: UiMessage) {
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                     Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 4.dp)) {
                         msg.reasoning?.takeIf { it.isNotBlank() }?.let {
-                            CollapsibleThinking(it)
+                            // 流式占位消息 → 折叠行走"钉尾滚动摘要"态（对齐 WebUI ReasoningRow）；
+                            // 落定/历史消息保持原静态文案
+                            CollapsibleThinking(
+                                it,
+                                streaming = msg.key == ConversationViewModel.STREAMING_KEY,
+                            )
                             Spacer(Modifier.height(3.dp))
                         }
                         // 流式占位消息用纯文本渲染（修复"表格闪烁/错乱"）：AndroidView TextView
@@ -553,10 +558,18 @@ private fun CollapsibleMarkdownBody(text: String, fontSizeSp: Float = 15f) {
  * 思考过程（紧凑单行版，修复"宽边框"观感）：不再用嵌套卡片（框中框双层 padding + 标题行 +
  * 两行预览，glm 每条回复都带思考过程，等于每条消息顶上垫一大块空白）。默认一行灰字提示，
  * 点按展开全文，再点收起。
+ *
+ * 流式中（streaming=true，仅 STREAMING_KEY 占位消息）：折叠态切到 ThinkingStreamRow——
+ * 单行"最新末尾思考语句"钉尾横向滚动 + 扫光动画（对齐 WebUI ReasoningRow），
+ * 让用户区分"在思考"（文字持续推进）与"卡住"（文字停住）。落定后占位被 settled 替换，自动回退本静态渲染。
  */
 @Composable
-private fun CollapsibleThinking(content: String) {
+private fun CollapsibleThinking(content: String, streaming: Boolean = false) {
     var expanded by remember { mutableStateOf(false) }
+    if (!expanded && streaming) {
+        ThinkingStreamRow(content, onExpand = { expanded = true })
+        return
+    }
     Text(
         if (expanded) content else "💭 思考过程 · 点按展开",
         fontSize = 11.sp,
