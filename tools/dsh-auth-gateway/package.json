@@ -1,7 +1,7 @@
 {
   "name": "dsh-auth-gateway",
-  "version": "1.0.0",
-  "description": "DSH 免令牌网关插件：在 dsh 进程内起一个本地反向代理（默认 127.0.0.1:3081），自动为转发请求注入有效会话 Cookie，使手机 App 用裸地址（不加 ?token=）即可远程访问。随 dsh 启动自动加载、随 dsh 退出自动关闭，无独立进程、无计划任务、无需改任何启动脚本。",
+  "version": "1.1.1",
+  "description": "DSH 免令牌网关插件：在 dsh 进程内放行经 Tailscale Serve 转发进来的请求（并可选提供本地反向代理端口），使手机 App 用裸地址（不加 ?token=）即可远程访问。随 dsh 启动自动加载、随 dsh 退出自动消失，无独立进程、无计划任务、无需改任何启动脚本。",
   "type": "module",
   "main": "lib/index.mjs",
   "exports": {
