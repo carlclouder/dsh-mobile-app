@@ -256,6 +256,14 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
     // 首滚门控（滚底修复）：等历史加载完成再做首次定位——消息列表是多波异步填充的，
     // 少量实时消息先到时提前滚动会把 scrolledOnce 消耗掉，历史大列表到位后因 isNearBottom=false 永不滚动。
     val historyLoaded by viewModel.historyLoaded.collectAsState()
+    // 轮询刷新（新版 dsh 无 WS 事件流）：本会话运行中期间每 2 秒拉一次 history 对账，
+    // 使"发消息 → 看到回复"的实时性成立；回合结束（running=false）即停止，空闲零开销。
+    androidx.compose.runtime.LaunchedEffect(running) {
+        while (running) {
+            kotlinx.coroutines.delay(2_000L)
+            viewModel.refreshViaPolling()
+        }
+    }
     val lastKey = messages.lastOrNull()?.key ?: ""
     val lastTextLen = messages.lastOrNull()?.text?.length ?: 0
     androidx.compose.runtime.LaunchedEffect(historyLoaded, messages.size, lastKey, lastTextLen, running) {

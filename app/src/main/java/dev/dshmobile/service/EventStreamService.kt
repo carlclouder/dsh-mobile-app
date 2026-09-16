@@ -63,6 +63,9 @@ class EventStreamService : android.app.Service() {
     private var hostJob: Job? = null
     private var muxJob: Job? = null
 
+    /** 轮询协程（新版 dsh 无 WS 事件流，以周期全量对账驱动状态；见 startStreams 注释）。 */
+    private var pollJob: Job? = null
+
     /** 双流开启状态跟踪（连接状态条数据源）。 */
     @Volatile private var hostOpened = false
     @Volatile private var muxOpened = false
@@ -228,18 +231,45 @@ class EventStreamService : android.app.Service() {
     // 流回路
     // -------------------------------------------------------------------
 
+    /**
+     * 启动状态同步。
+     *
+     * 新版 dsh(≥0.1.2-rc.1) 移除了 /api/events.host|events.mux 两条 WebSocket 事件流
+     * （2026-09-16 实测：带有效会话 Cookie 仍 404/升级被断，官方 WebUI 自身改为 HTTP 轮询），
+     * 因此以**周期轮询 session.list 全量对账**替代两条 WS：状态机 / 通知（回合完成、审批、
+     * 提问）/ 会话列表 / 工作区 全部由 runBaseline() 驱动（与"下拉刷新"同一条权威链路），
+     * 旧版与新版宿主都能用（session.list 两边都存在）。WS 相关代码保留备查，不再启动。
+     */
     private fun startStreams() {
-        hostJob?.cancel()
-        muxJob?.cancel()
-        hostJob = serviceScope.launch { runEventStream(StreamKind.HOST) }
-        muxJob = serviceScope.launch { runEventStream(StreamKind.MUX) }
+        pollJob?.cancel()
+        pollJob = serviceScope.launch { runPollingLoop() }
+    }
+
+    /** 轮询主循环：全量对账 + 连接状态发布（失败连续 3 次判不可达）。 */
+    private suspend fun runPollingLoop() {
+        while (true) {
+            val ok = runBaseline()
+            publishPollingState(ok)
+            delay(POLL_INTERVAL_MS)
+        }
+    }
+
+    /** 轮询连接状态发布：成功即已连接并清零失败计数。 */
+    private fun publishPollingState(ok: Boolean) {
+        val state = when {
+            ok -> {
+                consecutiveFailures.set(0)
+                DshRepository.ConnectionState.CONNECTED
+            }
+            consecutiveFailures.incrementAndGet() >= 3 -> DshRepository.ConnectionState.UNREACHABLE
+            else -> DshRepository.ConnectionState.RECONNECTING
+        }
+        DshRepository.publishConnection(state)
     }
 
     private fun restartStreams(reason: String) {
-        // 立即断开两条流（轻关：执行器保留）：下轮循环零退避重连到（可能已变更的）基址
-        runCatching { DshRepository.apiClient.closeEventSockets() }
-        android.util.Log.i(TAG, "restart streams: $reason")
-        startStreams()
+        // 轮询模式无需强制重开连接：下一轮询周期（≤POLL_INTERVAL_MS）自然重跑，仅记日志便于排查
+        android.util.Log.i(TAG, "poll kick: $reason (next tick within ${POLL_INTERVAL_MS}ms)")
     }
 
     private enum class StreamKind(val path: String) {
@@ -417,9 +447,11 @@ class EventStreamService : android.app.Service() {
     // baseline 对账
     // -------------------------------------------------------------------
 
-    private suspend fun runBaseline() {
+    private suspend fun runBaseline(): Boolean {
+        var sessionListOk = false
         when (val result = DshRepository.apiClient.sessionList()) {
             is ApiResult.Ok -> {
+                sessionListOk = true
                 // 与帧处理同锁：对账合并 + 补发指令 + 快照发布原子化（终审 P1-1/P2-5）
                 synchronized(machineLock) {
                     executeCommands(stateMachine.onBaseline(result.value))
@@ -443,6 +475,7 @@ class EventStreamService : android.app.Service() {
             }
             else -> Unit
         }
+        return sessionListOk
     }
 
     // -------------------------------------------------------------------
@@ -494,5 +527,8 @@ class EventStreamService : android.app.Service() {
 
     companion object {
         private const val TAG = "EventStreamService"
+
+        /** 全量对账轮询间隔（毫秒）：3s 兼顾实时观感与请求开销（新版无 WS 推送的替代方案）。 */
+        private const val POLL_INTERVAL_MS = 3_000L
     }
 }
