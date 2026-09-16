@@ -36,6 +36,15 @@
 
 完成后首页顶部应显示 **「已连接」**。
 
+> **地址怎么填（两种都支持）**
+> - **推荐：裸地址** `https://<机器名>.<你的 tailnet>.ts.net/` —— 宿主侧已安装免令牌网关插件
+>   （`dsh-auth-gateway`），会自动完成认证，**不需要令牌**，也不需要每次 dsh 重启后重新粘贴。
+> - 也可以填**带令牌的完整链接** `https://<机器名>.<tailnet>.ts.net/?token=<令牌>` ——
+>   App 会用它换取会话凭证（30 天有效）并持久化，之后同样无需再管。
+>
+> 令牌从哪来（宿主上执行）：`findstr /C:"dsh web: http" "%USERPROFILE%\.dsh\logs\dsh-webui.log"`。
+> 原理与部署见 `docs/dsh-auth-gateway-plugin.md`。
+
 ---
 
 ## 3. 会话列表（首页）

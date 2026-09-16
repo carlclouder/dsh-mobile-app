@@ -525,6 +525,10 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
 
     fun send(text: String) {
         if (text.isBlank()) return
+        // 发送前的运行态：true = 当前回合正在跑，按 dsh 新版契约（session/prompt，mode=queue，
+        // 与官方 WebUI 发消息一致）这条消息会**排入队列**、等回合结束后自动执行。
+        // 记录它以在受理成功后给用户明确反馈（否则用户会误判"没发送"）。
+        val wasRunning = _running.value
         _running.value = true
         // 乐观插入用户消息（历史/实时不重复），key 用本地时间戳保证唯一
         _messages.value = _messages.value + UiMessage(
@@ -539,6 +543,10 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                     // 发送受理即标记"本机已发过消息"（本地事实）：列表立即豁免 blank 隐藏——
                     // 不等宿主 turn/start（数秒延迟）与推送帧（慢链路可能丢），返回列表即刻可见
                     DshRepository.markSessionPrompted(sessionId)
+                    if (wasRunning) {
+                        // 排队反馈（手机实测报障修复）：消息已受理但会等当前回合结束才执行
+                        _actionError.value = "已加入队列：当前回合运行中，这条消息会在回合结束后自动发送。"
+                    }
                 }
                 // 发送失败必须可见（审计 Top3-①：静默失败=用户以为发出去了，agent 永远不回）：
                 // 打点失败码 + Toast 提示；running 复位。乐观消息保留（内容没丢，可重发）。

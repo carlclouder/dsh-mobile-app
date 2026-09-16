@@ -1,0 +1,12 @@
+# dsh bundle patch: 把免令牌网关挂进 profile 组合。
+#
+# 插件由 dsh 进程自身加载（随 dsh 启动/退出），不产生任何外部进程或计划任务。
+# 默认监听 127.0.0.1:3081 → 转发到 dsh web（127.0.0.1:3080），并自动注入会话 Cookie。
+# 如需改端口/上游，在用户 cordis.patch.yml 加 id 定向覆盖行（config 整对象替换，需写全）：
+# - id: auth-gateway
+#   config:
+#     port: 3081
+#     upstreamPort: 3080
+- insert:
+    - id: auth-gateway
+      name: 'dsh-auth-gateway'
