@@ -198,6 +198,51 @@ dsh plugin --profile web remove dsh-auth-gateway
 
 **因此：每次 `dsh plugin add/install` 之后，必须复查 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles`，确认没有多余的 `dsh-file-upload`。**
 
+**`dsh plugin install` 不会补齐被删除的插件，还会把登记一起清掉（2026-09-16 隔离环境实测）**：手动删除 `profiles/web/node_modules/dsh-auth-gateway` 后再执行 `dsh plugin --profile web install`，输出 `Already up to date`（pnpm 认为依赖已满足）**并未恢复插件**，且 `dsh.profile.bundles` 中的 `dsh-auth-gateway` **同时消失**——说明 **bundles 清单记录的是"实际安装状态"而非"期望状态"**，dsh 没有"声明后自动补齐"的能力。因此插件丢失后**唯一恢复手段是重新 `add` 插件包**（见 §10）。
+
+## 9. 安装与恢复（插件如何"伴随 dsh"）
+
+### 9.1 事实边界
+
+| 问题 | 事实 |
+|---|---|
+| 装好之后会不会跟着 dsh 跑？ | **会**。dsh 每次启动按 `dsh.profile.bundles` 加载插件，无需任何外部机制 |
+| dsh 版本升级会不会弄丢插件？ | **不会**。插件装在用户目录 `~/.dsh`，npm 升级只动 dsh 自身安装目录（两个解析锚点：dsh 安装目录、profile 目录） |
+| 能否"声明期望状态后自动安装"？ | **不能**。实测 `dsh plugin install` 不补齐缺失插件、还会清掉登记（见 §8） |
+| 什么情况会丢？ | 删除/重建 `~/.dsh`、换电脑、重装系统、手工删过 `profiles/web/node_modules` 里的插件目录 |
+
+### 9.2 一键安装 / 修复脚本
+
+```
+tools/install-auth-gateway.ps1
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "D:\AI任务\dsh-mobile-app\tools\install-auth-gateway.ps1"
+```
+
+脚本行为（**幂等**，重复运行无副作用）：
+
+1. 定位插件包：优先 `~/.dsh/local-plugins/` 中版本号最大的 tgz，其次仓库 `tools/dsh-auth-gateway/`；
+2. 检查 profile 清单登记与已装版本，**已是目标版本则只报告状态、不做任何改动**；
+3. 需要时执行 `dsh plugin --profile web add <tgz>`；
+4. **自动复查并移除冲突项 `dsh-file-upload`**（与 dsh 内置同名，否则重启即崩）；
+5. 输出结果并提示"重启 dsh 生效"。
+
+可选参数：`-DshHome`（指定 dsh 用户目录，默认 `$env:DSH_HOME` 或 `~/.dsh`）、`-DshCommand`、`-PluginStore`。
+
+**何时需要跑**：新机器部署、删除过 `~/.dsh`、dsh 大版本升级后、插件被误删时。日常运行**不需要**跑（插件已随 dsh 启动自动加载）。
+
+**为什么不挂成自动机制**：用户明确要求"不是独立维护的东西"，且**在 dsh 进程内执行代码的唯一载体就是插件本身**（鸡生蛋问题），不存在"dsh 启动时自动安装自己"的路径；因此把安装动作固化为**一次性命令**，安装在用户目录后即长期生效。
+
+### 9.3 验证记录（隔离环境）
+
+| 场景 | 结果 |
+|---|---|
+| 主环境已装 1.1.1 时运行脚本 | 报告"已是目标版本，无需改动"，未修改任何文件（幂等） |
+| 隔离环境（清单登记=False、无插件目录）运行脚本 | 成功安装 → 登记=True、插件目录就位、bundles 恢复 |
+| 归档副本 | `~/.dsh/local-plugins/dsh-auth-gateway-1.1.1.tgz`（恢复来源） |
+
 ## 9. 待办与变更记录
 
 | 日期 | 变更 |
