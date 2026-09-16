@@ -54,10 +54,25 @@ object DshAuthSession {
     private var prefs: android.content.SharedPreferences? = null
 
     /** 独立客户端：仅用于令牌换 Cookie，不带业务拦截器（防递归），不跟随重定向。
-     *  不做 Host 改写：新版围栏对带有效令牌的请求不检查 Host（2026-09-16 实测），
-     *  且换 Cookie 与后续请求的 Host 口径必须一致（见 DshApiClient 同名注释）。 */
+     *  必须与主客户端同款 Host 改写：模拟器经 10.0.2.2 访问时 Host 头会被宿主围栏判 403，
+     *  且换 Cookie 与后续业务请求的 Host authority 必须一致（Cookie JWT 绑定颁发 Host）。 */
     private val exchangeClient: OkHttpClient = OkHttpClient.Builder()
         .followRedirects(false)
+        .apply {
+            if (dev.dshmobile.BuildConfig.DEBUG) {
+                addInterceptor { chain ->
+                    val request = chain.request()
+                    val rewritten = if (request.url.host == "10.0.2.2") {
+                        request.newBuilder()
+                            .header("Host", dev.dshmobile.BuildConfig.TRUSTED_AUTHORITY)
+                            .build()
+                    } else {
+                        request
+                    }
+                    chain.proceed(rewritten)
+                }
+            }
+        }
         .build()
 
     /**
@@ -91,21 +106,38 @@ object DshAuthSession {
     }
 
     /**
-     * 换址时登记。令牌消费状态按输入形态判定：
-     * - 新粘贴的带令牌链接 → 新令牌未消费（RAW）；
-     * - 裸地址 → 保持原消费状态（Cookie 仍可复用）。
-     * Cookie 不清除：同一宿主的会话 Cookie 在未重启时仍有效，避免不必要的令牌消耗。
+     * 换址/换令牌时登记。
+     * - 带新令牌（用户重新粘贴链接）：重置消费状态，并**清掉旧会话 Cookie**——
+     *   新令牌意味着新会话，且 Host authority 口径可能已变（旧 Cookie 会 401）；
+     * - 裸地址且 base 未变（App 重启等）：**保留持久化 Cookie**（30 天内直接复用，
+     *   避免浪费一次性令牌——令牌已消费就换不出新 Cookie 了）；
+     * - 裸地址且 base 变了：清 Cookie（换了宿主，旧会话不通用）。
      */
     fun configure(base: String, token: String?) {
+        val baseChanged = authBase != null && authBase != base
         authBase = base
-        if (token != null) {
-            // 新令牌（用户重新粘贴了链接）：重置消费状态
-            authToken = token
-            tokenConsumed = false
-            if (prefs != null) prefs!!.edit().putBoolean(KEY_TOKEN_CONSUMED, false).apply()
+        when {
+            token != null -> {
+                // 新令牌 = 新会话：重置消费状态并清旧 Cookie（Host authority 口径可能已变）
+                authToken = token
+                tokenConsumed = false
+                clearSessionCookie()
+                prefs?.edit()?.putBoolean(KEY_TOKEN_CONSUMED, false)?.apply()
+            }
+            baseChanged -> {
+                // 换宿主：令牌失效，但**保留 Cookie**——debug/真机的 Host 改写口径稳定时
+                // 已持久化的会话 Cookie 仍可复用（30 天），避免用户为换址重新取令牌；
+                // 若 Cookie 确实不再被该宿主接受，请求会 401，届时提示用户粘贴新令牌链接。
+                authToken = null
+            }
+            else -> authToken = null   // 同址裸地址：保留 Cookie 直接复用
         }
-        // token == null：保留原 authToken 语义为无令牌直连，但不覆盖消费状态
-        if (token == null) authToken = null
+    }
+
+    /** 丢弃当前会话 Cookie（内存 + 持久化），下次请求按令牌重新建立或直接匿名访问。 */
+    private fun clearSessionCookie() {
+        sessionCookie = null
+        prefs?.edit()?.remove(KEY_COOKIE)?.apply()
     }
 
     /** 当前会话 Cookie（供 WebSocket 握手手动加头）；null = 尚未建立。 */

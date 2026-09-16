@@ -16,8 +16,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -58,16 +60,28 @@ class DshApiClient(baseUrl: String) {
     }
 
     /**
-     * 旧版（0.1.1-rc.2）浏览器信任围栏要求 Host 必须是受信权威，10.0.2.2 的 Host 会被拒，
-     * 因此 debug 构建曾用此拦截器改写 Host。**新版（≥0.1.2-rc.1）围栏改用一次性令牌 +
-     * 会话 Cookie：带有效令牌/Cookie 的请求不检查 Host**（2026-09-16 实测：模拟器无改写
-     * 直连成功，带改写反而与 Cookie 的 JWT authority 不一致被判 401）。故新版下统一
-     * **不改写 Host**，保证 Cookie authority 与请求 Host 一致。
-     * 本拦截器已停用（保留代码注释备查）；若日后需要恢复，必须三处客户端同步加，
-     * 且 Cookie 需在改写后的同一 Host 下重新建立。
+     * 模拟器调试用 Host 改写（仅 debug 构建）：安卓模拟器经 10.0.2.2 访问宿主时，
+     * 请求的 Host 头是 `10.0.2.2:<port>` —— 既不是 loopback 字面量、也不在宿主的
+     * --trusted-host 列表里，会被新版围栏第一级 `isTrustedApiRequest` 直接判 **403**
+     * （2026-09-16 实测：模拟器端 session.list 持续 403；同日 curl 从本机 127.0.0.1
+     * 访问正常，因 loopback 被默认信任——曾据此误判"新版不检查 Host"而停用本改写，已纠正）。
+     * 改写为部署受信权威后：换会话 Cookie 与业务请求使用同一 Host，Cookie 的 JWT
+     * authority 与请求 Host 一致，认证（第二级）也随之一致。
+     * release 构建不含此逻辑（BuildConfig.DEBUG=false；真机走 https 域名天然受信）。
      */
     private fun OkHttpClient.Builder.applyDebugEmulatorHostRewrite(): OkHttpClient.Builder {
-        return this // 新版令牌认证下不做 Host 改写（见上注释）
+        if (!BuildConfig.DEBUG) return this
+        return this.addInterceptor { chain ->
+            val request = chain.request()
+            val rewritten = if (request.url.host == EMULATOR_HOST_ALIAS) {
+                request.newBuilder()
+                    .header("Host", TRUSTED_AUTHORITY)
+                    .build()
+            } else {
+                request
+            }
+            chain.proceed(rewritten)
+        }
     }
 
     /** 单次调用 HTTP 客户端：连接 10s / 读 30s（设计 §5.1）。
@@ -114,6 +128,12 @@ class DshApiClient(baseUrl: String) {
     /** 基址世代计数：每次换址自增，供上层诊断流与调用是否跨代（评审 B P1-4）。 */
     private val generationCounter = java.util.concurrent.atomic.AtomicLong(0L)
 
+    /** RPC 协议风格（新版斜杠+args / 旧版点号+裸 payload）；null = 尚未探测，先按新版试。 */
+    private enum class RpcStyle { MODERN, LEGACY }
+
+    @Volatile
+    private var rpcStyle: RpcStyle? = null
+
     /** 规范化：去尾部斜杠；https(wss) 保持。空输入保持原样由调用方校验。 */
     private fun normalizeBaseUrl(url: String): String = url.trim().trimEnd('/')
 
@@ -128,6 +148,7 @@ class DshApiClient(baseUrl: String) {
         normalizedBase = normalizeBaseUrl(base)
         authToken = token
         DshAuthSession.configure(normalizedBase, authToken)
+        rpcStyle = null   // 换宿主后 RPC 协议需重新探测（新版斜杠 / 旧版点号）
         generationCounter.incrementAndGet()
         closeAllEventSockets()
     }
@@ -144,28 +165,96 @@ class DshApiClient(baseUrl: String) {
     /**
      * 通用单次调用：成功返回业务 value（可能为空 JsonObject，void 调用无 value 字段），
      * ok=false 归一 BizError，网络/协议层失败归一 NetError。
+     *
+     * **双协议自适应（2026-09-16 新版 dsh 适配）**：新版 dsh 把 RPC 从
+     * `POST /api/session.list`（点号 + 裸 payload）改为 `POST /api/session/list`
+     * （斜杠路径、method 亦为斜杠形式、参数包一层 `args`）。实测（curl 对照，本机 0.1.5-rc.2）：
+     * 斜杠+args → 200；点号旧式 → 404。
+     *
+     * **双向自愈（评审修正 P0）**：任一协议得到 404（= 路由不存在）就换另一种重试一次，
+     * 成功则记住该协议；因此即使一次误判把协议记错，下一个请求即可自愈，不会被锁死在
+     * 错误协议上（旧实现单向后一旦记错就永久 404）。
      */
     suspend fun call(method: String, payload: JsonObject): ApiResult<JsonObject> =
         withContext(Dispatchers.IO) {
-            val rpcId = UUID.randomUUID().toString()
-            val envelope = buildJsonObject {
-                put("type", "client-request")
-                put("rpcId", rpcId)
-                put("method", method)
-                put("payload", payload)
+            val preferred = rpcStyle ?: RpcStyle.MODERN
+            val first = executeCall(method, payload, preferred)
+            if (isNotFound(first)) {
+                val fallback = if (preferred == RpcStyle.MODERN) RpcStyle.LEGACY else RpcStyle.MODERN
+                val retried = executeCall(method, payload, fallback)
+                if (!isNotFound(retried)) rpcStyle = fallback   // 另一种协议可用：记住它
+                return@withContext retried
             }
-            // URL 构造防御（评审 B P2-5）：非法/空白基址归一 NetError 而非抛 IllegalArgumentException
-            val request = try {
-                Request.Builder()
-                    .url("${currentBaseUrl()}/api/$method")
-                    .post(envelope.toString().toRequestBody(JSON_MEDIA_TYPE))
-                    .header("Accept", "application/json")
-                    .build()
-            } catch (e: IllegalArgumentException) {
-                return@withContext ApiResult.NetError(e)
-            }
-            executeForValue(request)
+            if (first !is ApiResult.NetError) rpcStyle = preferred   // 拿到业务响应即确认协议
+            first
         }
+
+    /** 是否 404（协议不匹配的判据）：NetError 消息形如 "HTTP 404"。 */
+    private fun isNotFound(result: ApiResult<JsonObject>): Boolean =
+        result is ApiResult.NetError && result.throwable.message?.contains("404") == true
+
+    /** 按指定协议风格发一次 RPC。 */
+    private fun executeCall(
+        method: String,
+        payload: JsonObject,
+        style: RpcStyle,
+    ): ApiResult<JsonObject> {
+        val legacy = style == RpcStyle.LEGACY
+        val wireMethod = if (legacy) method else modernMethod(method)
+        val envelope = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", UUID.randomUUID().toString())
+            put("method", wireMethod)
+            // 新版参数包一层 args（旧版裸 payload）
+            put(
+                "payload",
+                if (legacy) payload else buildJsonObject { put("args", modernArgs(method, payload)) },
+            )
+        }
+        // URL 构造防御（评审 B P2-5）：非法/空白基址归一 NetError 而非抛 IllegalArgumentException
+        val request = try {
+            Request.Builder()
+                .url("${currentBaseUrl()}/api/$wireMethod")
+                .post(envelope.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("Accept", "application/json")
+                .build()
+        } catch (e: IllegalArgumentException) {
+            return ApiResult.NetError(e)
+        }
+        return executeForValue(request)
+    }
+
+    /**
+     * 新版端点名映射（typert 描述符实证，2026-09-16）：旧版点号方法 → 新版斜杠端点。
+     * 绝大多数是"点号换斜杠"；少数改了名（历史会话由 `session/page` 承担）。
+     */
+    private fun modernMethod(method: String): String = when (method) {
+        "session.history" -> "session/page"
+        else -> method.replace('.', '/')
+    }
+
+    /**
+     * 新版参数包装（客户端分发器源码实证）：
+     * - `session/list` 收 `args._request`；
+     * - `session/page` 收 `args.request = {address:{kind:"session",sessionId}, throughSeq}`；
+     * - 其余会话/工作区操作统一收 `args.request = <旧版 payload 原样>`。
+     * throughSeq 取 JS 最大安全整数（与前端"取到最新"语义一致）。
+     */
+    private fun modernArgs(method: String, payload: JsonObject): JsonObject = when (method) {
+        "session.list" -> buildJsonObject { put("_request", payload) }
+        "session.history" -> buildJsonObject {
+            put("request", buildJsonObject {
+                put("address", buildJsonObject {
+                    put("kind", "session")
+                    put("sessionId", payload["sessionId"]?.jsonPrimitive?.contentOrNull ?: "")
+                })
+                // 游标由调用方计算（session/list 的 projections.asOfSeq）；缺省 0 表示只取首条
+                put("throughSeq", payload["throughSeq"]?.jsonPrimitive?.longOrNull ?: 0L)
+                payload["maxMessages"]?.jsonPrimitive?.intOrNull?.let { put("maxMessages", it) }
+            })
+        }
+        else -> buildJsonObject { put("request", payload) }
+    }
 
     /** 执行请求并把 server-response 信封折叠为三分支结果。 */
     private fun executeForValue(request: Request): ApiResult<JsonObject> {
@@ -283,6 +372,8 @@ class DshApiClient(baseUrl: String) {
      */
     suspend fun sessionPrompt(sessionId: String, text: String): ApiResult<Unit> {
         val payload = buildJsonObject {
+            // 新版 SessionPromptRequest schema 要求 requestId（幂等标识；缺失即 boundary validation 失败）
+            put("requestId", UUID.randomUUID().toString())
             put("sessionId", sessionId)
             put("mode", "queue")
             put("content", JsonArray(listOf(buildJsonObject {
@@ -322,14 +413,57 @@ class DshApiClient(baseUrl: String) {
     }
 
     /** method="session.history"；拉取会话历史（对话页初始渲染，M5 原生）+ 解析为对话事件。 */
+    /**
+     * 解析会话当前游标（新版 session/page 的 throughSeq 上界，实测不能越界：
+     * "session page through seq N is past cursor M"）。
+     *
+     * 两条路径（按序）：
+     * 1. session/list 里该会话的 projections.asOfSeq —— 仅"投影已加载"的会话有正值，
+     *    历史旧会话常为 -1（实测），故需兜底；
+     * 2. 兜底：故意发一个超界 throughSeq（JS 安全整数上限），从服务端错误消息
+     *    "past cursor <M>" 里解析真实游标（错误文案实测稳定）。
+     * 都拿不到时返回 0（历史只返回首条，不报错）。
+     */
+    private suspend fun resolveCursor(sessionId: String): Long {
+        val listed = call("session.list", JsonObject(emptyMap()))
+        if (listed is ApiResult.Ok) {
+            val items = listed.value["items"] as? JsonArray
+            items?.forEach { el ->
+                val item = el as? JsonObject ?: return@forEach
+                if ((item["sessionId"] as? JsonPrimitive)?.contentOrNull != sessionId) return@forEach
+                val asOf = (((item["projections"] as? JsonObject)?.get("asOfSeq")) as? JsonPrimitive)
+                    ?.contentOrNull?.toLongOrNull()
+                if (asOf != null && asOf > 0) return asOf
+            }
+        }
+        // 兜底：超界探测解析游标
+        val probe = call("session.history", buildJsonObject {
+            put("sessionId", sessionId)
+            put("throughSeq", JS_MAX_SAFE_INTEGER)
+        })
+        if (probe is ApiResult.BizError) {
+            Regex("past cursor\\s+(\\d+)").find(probe.message)
+                ?.groupValues?.get(1)?.toLongOrNull()?.let { return it }
+        }
+        return 0L
+    }
+
     suspend fun sessionHistory(sessionId: String, maxMessages: Int = 100): ApiResult<List<ConversationEvent>> {
+        // 新版 session/page 必须带 throughSeq（不能超过会话当前游标，实测报
+        // "through seq N is past cursor M"）：先取 session/list 里该会话的 projections.asOfSeq
+        // 作为游标；取不到时退 0（只拿到 seq=0 的首条，不报错）。
+        val cursor = resolveCursor(sessionId)
         val payload = buildJsonObject {
             put("sessionId", sessionId)
             put("maxMessages", maxMessages)
+            put("throughSeq", cursor)
         }
         return when (val r = call("session.history", payload)) {
             is ApiResult.Ok -> mapValue(r) { root ->
-                val events = (root["events"] as? JsonArray) ?: JsonArray(emptyList())
+                // 新版历史外层字段是 records（旧版 events），元素形状一致（{event:{...}}）
+                val events = (root["records"] as? JsonArray)
+                    ?: (root["events"] as? JsonArray)
+                    ?: JsonArray(emptyList())
                 events.mapNotNull { el ->
                     val item = el as? JsonObject ?: return@mapNotNull null
                     val evt = item["event"] as? JsonObject ?: return@mapNotNull null
@@ -348,8 +482,7 @@ class DshApiClient(baseUrl: String) {
         }
     }
 
-    /** method="session.models"；拉可选模型目录 + 当前选择（需求：模型/推理等级选择器）。 */
-    suspend fun sessionModels(sessionId: String): ApiResult<dev.dshmobile.model.ModelDirectory> {
+    /** method="session.models"；拉可选模型目录 + 当前选择（需求：模型/推理等级选择器）。 */    suspend fun sessionModels(sessionId: String): ApiResult<dev.dshmobile.model.ModelDirectory> {
         val payload = buildJsonObject { put("sessionId", sessionId) }
         return when (val r = call("session.models", payload)) {
             is ApiResult.Ok -> mapValue(r) { root ->
@@ -611,5 +744,8 @@ class DshApiClient(baseUrl: String) {
         /** 部署受信权威（与 dsh web --trusted-host 一致）：Host 无端口，匹配任意端口。
          *  值经 BuildConfig 注入（app/personal.properties，git 忽略）——源码不含私人域名（开源安全）。 */
         private val TRUSTED_AUTHORITY: String = BuildConfig.TRUSTED_AUTHORITY
+
+        /** JS 安全整数上限：新版 session/page 的 throughSeq 越界探测值。 */
+        private const val JS_MAX_SAFE_INTEGER = 9_007_199_254_740_991L
     }
 }

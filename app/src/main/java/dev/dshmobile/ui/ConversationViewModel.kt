@@ -304,6 +304,15 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         }
     }
 
+    /**
+     * 轮询刷新（新版 dsh ≥0.1.2-rc.1 移除了 WS 事件流，会话页实时性以周期 history 对账替代）：
+     * 由会话页在"本会话运行中"期间每 2 秒调用一次；loadHistory 是合并式可重入（P1-1 修复保证
+     * 往返期间实时消息不被抹），反复调用安全。
+     */
+    fun refreshViaPolling() {
+        viewModelScope.launch { loadHistory() }
+    }
+
     private suspend fun loadHistory() {
         when (val r = DshRepository.apiClient.sessionHistory(sessionId)) {
             is ApiResult.Ok -> {

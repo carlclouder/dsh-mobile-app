@@ -80,12 +80,12 @@ class DshApiClientTest {
         // content-type 比对逻辑对齐服务端 handler.js L208：取 ';' 前段小写比较，
         // OkHttp 默认追加 "; charset=utf-8" 属合法（服务端同样放行）。
         val recorded = server.takeRequest()
-        assertEquals("/api/session.list", recorded.path)
+        assertEquals("/api/session/list", recorded.path)
         val mediaType = recorded.getHeader("Content-Type")!!.substringBefore(';').trim().lowercase()
         assertEquals("application/json", mediaType)
         val sentBody = kotlinx.serialization.json.Json.parseToJsonElement(recorded.body.readUtf8()).jsonObject
         assertEquals("client-request", sentBody["type"]!!.jsonPrimitive.content)
-        assertEquals("session.list", sentBody["method"]!!.jsonPrimitive.content)
+        assertEquals("session/list", sentBody["method"]!!.jsonPrimitive.content)
         assertTrue(sentBody.containsKey("rpcId"))
         assertTrue(sentBody.containsKey("payload"))
     }
@@ -107,7 +107,7 @@ class DshApiClientTest {
         val biz = assertIs<ApiResult.BizError>(result)
         assertEquals("session-not-found", biz.code)
         assertEquals("gone", biz.message)
-        assertEquals("/api/session.cancel", server.takeRequest().path)
+        assertEquals("/api/session/cancel", server.takeRequest().path)
     }
 
     @Test
@@ -287,8 +287,11 @@ class DshApiClientTest {
 
         val ok = assertIs<ApiResult.Ok<String>>(result)
         assertEquals("new-1", ok.value)
-        val payload = kotlinx.serialization.json.Json.parseToJsonElement(server.takeRequest().body.readUtf8())
+        val envelopePayload = kotlinx.serialization.json.Json.parseToJsonElement(server.takeRequest().body.readUtf8())
             .jsonObject["payload"]!!.jsonObject
+        // 新版契约：payload.args.request（少数端点为 args._request）
+        val args = envelopePayload["args"]!!.jsonObject
+        val payload = (args["request"] ?: args["_request"])!!.jsonObject
         assertEquals("ws-1", payload["workspaceId"]!!.jsonPrimitive.content)
         // refine 二选一：不得同时携带 cwd
         assertTrue(!payload.containsKey("cwd"))
@@ -325,9 +328,12 @@ class DshApiClientTest {
         assertIs<ApiResult.Ok<Unit>>(result)
 
         val recorded = server.takeRequest()
-        assertEquals("/api/session.prompt", recorded.path)
-        val payload = kotlinx.serialization.json.Json.parseToJsonElement(recorded.body.readUtf8())
+        assertEquals("/api/session/prompt", recorded.path)
+        val envelopePayload = kotlinx.serialization.json.Json.parseToJsonElement(recorded.body.readUtf8())
             .jsonObject["payload"]!!.jsonObject
+        // 新版契约：payload.args.request（少数端点为 args._request）
+        val args = envelopePayload["args"]!!.jsonObject
+        val payload = (args["request"] ?: args["_request"])!!.jsonObject
         assertEquals("s1", payload["sessionId"]!!.jsonPrimitive.content)
         assertEquals("queue", payload["mode"]!!.jsonPrimitive.content)
         val content = payload["content"]!!.jsonArray
@@ -355,9 +361,12 @@ class DshApiClientTest {
         assertIs<ApiResult.Ok<Unit>>(result)
 
         val recorded = server.takeRequest()
-        assertEquals("/api/session.updateQueue", recorded.path)
-        val payload = kotlinx.serialization.json.Json.parseToJsonElement(recorded.body.readUtf8())
+        assertEquals("/api/session/updateQueue", recorded.path)
+        val envelopePayload = kotlinx.serialization.json.Json.parseToJsonElement(recorded.body.readUtf8())
             .jsonObject["payload"]!!.jsonObject
+        // 新版契约：payload.args.request（少数端点为 args._request）
+        val args = envelopePayload["args"]!!.jsonObject
+        val payload = (args["request"] ?: args["_request"])!!.jsonObject
         assertEquals("s1", payload["sessionId"]!!.jsonPrimitive.content)
         assertEquals("item-1", payload["itemId"]!!.jsonPrimitive.content)
         val action = payload["action"]!!.jsonObject
