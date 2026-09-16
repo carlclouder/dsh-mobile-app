@@ -1,6 +1,8 @@
 # DSH 免令牌网关插件（dsh-auth-gateway）设计与实现
 
-> 状态：**已实现并通过隔离实例验证（v1.1.1）；主 profile 已安装，待重启 dsh 生效**（2026-09-16）
+> 状态：**已上线生效并验证（v1.1.1；dsh 于 2026-09-16 22:29 重启后加载）**
+> 服务器侧验证：真实域名 `https://carl-pc.taild10021.ts.net/api/session/list`（与手机同一路径）返回 **200**、首页 **200**、
+> 本机裸 Host 对照仍 401；插件启动日志 `[auth-gateway] 已开启 tailnet 免令牌放行（受信 Host: carl-pc.taild10021.ts.net, …）`。
 > 产出物：`tools/dsh-auth-gateway/`（插件源码）、`C:\Users\Carl\.dsh\local-plugins\dsh-auth-gateway-1.1.1.tgz`（安装副本）
 
 ## 0. 最终形态（一句话）
@@ -168,9 +170,20 @@ ctx.effect(() => {
 
 用主 home 在隔离端口起实例：**正常监听、无崩溃**（此前被 pnpm 带回来的第三方 `dsh-file-upload` 已移除，否则会因与内置同名而 `duplicate loader entry id` 启动失败）。
 
-### 5.3 未验证项（如实标注）
+### 5.3 重启后实测（2026-09-16 22:29，真实主服务 3080）
 
-- **重启主服务后的实际生效**（需重启 dsh 才能验证，见 §9 待办）。
+| 验证项 | 结果 |
+|---|---|
+| 插件随 dsh 重启加载 | ✅ 日志 `[auth-gateway] 已开启 tailnet 免令牌放行（受信 Host: carl-pc.taild10021.ts.net, carl-pc.tail98fa18.ts.net…）`；`免令牌网关已就绪: 3081 → 3080` |
+| **真实域名 API**（与手机同路径，经 Tailscale Serve） | ✅ **200** |
+| 真实域名首页 | ✅ 200 |
+| 本机裸 Host 对照（无令牌） | 401（认证范围未被扩大） |
+| Tailscale Serve 指向 | ✅ `http://127.0.0.1:3080`（用户脚本自动维护，未被改动） |
+
+### 5.4 仍未验证项（如实标注）
+
+- **手机端到端**：排查时发现手机 Tailscale 处于离线状态（`tailscale status`：`v2309a android offline, last seen 54m ago`），
+  即手机不在 tailnet 内，无法访问该域名；**服务器侧全部通过，手机侧需用户恢复 Tailscale 连接后实测**。
 - 真机经 Tailscale Serve 的完整链路（服务器侧能力已由 curl 模拟 Serve 条件验证，手机侧需实测）。
 - WebSocket 升级路径的放行（App 当前走轮询，未构造 WS 客户端实测；代码路径与 API 相同）。
 
@@ -251,4 +264,5 @@ powershell -ExecutionPolicy Bypass -File "D:\AI任务\dsh-mobile-app\tools\insta
 | 2026-09-16 | 发现"用户启动脚本会把 Serve 指回 3080"，D1 形态无法落地 → 改为认证链放行 |
 | 2026-09-16 | v1.1.0：新增 `requestRejection` 放行（API 通过，首页仍 401） |
 | 2026-09-16 | v1.1.1：补 `authorizeIndex` 放行首页；隔离实例四项对照全部符合预期；主 profile 升级安装 |
-| — | **待用户重启 dsh 生效**；旧机制（计划任务 `DSH-AuthProxy`、`start-auth-proxy.vbs/.cmd`、外部代理进程、3081 占用）已全部清理 |
+| 2026-09-16 22:29 | **dsh 重启，插件上线生效**：真实域名 API/首页实测 200；旧机制（计划任务 `DSH-AuthProxy`、`start-auth-proxy.vbs/.cmd`、外部代理进程、3081 占用）已全部清理 |
+| 2026-09-16 | 手机端排查：手机 Tailscale 离线（`offline, last seen 54m ago`）→ 手机侧待恢复连接后实测；服务器侧无待办 |
