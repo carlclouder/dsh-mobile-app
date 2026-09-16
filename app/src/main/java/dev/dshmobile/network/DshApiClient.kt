@@ -40,36 +40,45 @@ import java.util.concurrent.TimeUnit
  */
 class DshApiClient(baseUrl: String) {
 
-    /** 可变基址：设置页改地址后调用 [updateBaseUrl]，单机场景无并发竞争，仍加锁保秩。 */
-    private var normalizedBase: String = normalizeBaseUrl(baseUrl)
-
     /**
-     * 模拟器测试辅助（仅 debug 构建生效）：安卓模拟器无法用 adb reverse（本环境实测坏死），
-     * 且其宿主别名 10.0.2.2 的 Host 头不被服务端信任栏栅放行（非 loopback 主机名）。
-     * 该拦截器把 10.0.2.2 请求的 Host 改写为部署受信权威，使 debug 构建能在模拟器里
-     * 以 NAT 直连宿主 DSH 做端到端验证。release 构建完全不含此逻辑（BuildConfig.DEBUG=false）。
+     * 可变基址：设置页改地址后调用 [updateBaseUrl]，单机场景无并发竞争，仍加锁保秩。
+     * 新版 dsh(≥0.1.2-rc.1) 适配：地址允许携带一次性令牌（`?token=`，用户从新版启动
+     * 输出复制的完整链接）——构造/换址时经 [DshAuthSession.splitBaseUrl] 拆出 base 与
+     * token 并登记，实际网络层由 [DshAuthSession.authInterceptor] 自动完成令牌换会话
+     * Cookie 与 401 自愈；不带令牌的地址行为与旧版完全一致（向下兼容）。
      */
-    private fun OkHttpClient.Builder.applyDebugEmulatorHostRewrite(): OkHttpClient.Builder {
-        if (!BuildConfig.DEBUG) return this
-        return this.addInterceptor { chain ->
-            val request = chain.request()
-            val rewritten = if (request.url.host == EMULATOR_HOST_ALIAS) {
-                request.newBuilder()
-                    .header("Host", TRUSTED_AUTHORITY)
-                    .build()
-            } else {
-                request
-            }
-            chain.proceed(rewritten)
-        }
+    private var normalizedBase: String
+    private var authToken: String? = null
+
+    init {
+        val (base, token) = DshAuthSession.splitBaseUrl(baseUrl)
+        normalizedBase = normalizeBaseUrl(base)
+        authToken = token
+        DshAuthSession.configure(normalizedBase, authToken)
     }
 
-    /** 单次调用 HTTP 客户端：连接 10s / 读 30s（设计 §5.1）。 */
+    /**
+     * 旧版（0.1.1-rc.2）浏览器信任围栏要求 Host 必须是受信权威，10.0.2.2 的 Host 会被拒，
+     * 因此 debug 构建曾用此拦截器改写 Host。**新版（≥0.1.2-rc.1）围栏改用一次性令牌 +
+     * 会话 Cookie：带有效令牌/Cookie 的请求不检查 Host**（2026-09-16 实测：模拟器无改写
+     * 直连成功，带改写反而与 Cookie 的 JWT authority 不一致被判 401）。故新版下统一
+     * **不改写 Host**，保证 Cookie authority 与请求 Host 一致。
+     * 本拦截器已停用（保留代码注释备查）；若日后需要恢复，必须三处客户端同步加，
+     * 且 Cookie 需在改写后的同一 Host 下重新建立。
+     */
+    private fun OkHttpClient.Builder.applyDebugEmulatorHostRewrite(): OkHttpClient.Builder {
+        return this // 新版令牌认证下不做 Host 改写（见上注释）
+    }
+
+    /** 单次调用 HTTP 客户端：连接 10s / 读 30s（设计 §5.1）。
+     *  拦截器顺序：先 debug 模拟器 Host 改写，后 [DshAuthSession.authInterceptor]——
+     *  保证令牌换 Cookie 与业务请求使用同一 Host authority（Cookie JWT 绑定颁发 Host）。 */
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .applyDebugEmulatorHostRewrite()
+        .addInterceptor(DshAuthSession.authInterceptor)
         .build()
 
     /**
@@ -99,6 +108,7 @@ class DshApiClient(baseUrl: String) {
         .readTimeout(8, TimeUnit.SECONDS)
         .writeTimeout(8, TimeUnit.SECONDS)
         .applyDebugEmulatorHostRewrite()
+        .addInterceptor(DshAuthSession.authInterceptor)
         .build()
 
     /** 基址世代计数：每次换址自增，供上层诊断流与调用是否跨代（评审 B P1-4）。 */
@@ -114,7 +124,10 @@ class DshApiClient(baseUrl: String) {
      */
     @Synchronized
     fun updateBaseUrl(url: String) {
-        normalizedBase = normalizeBaseUrl(url)
+        val (base, token) = DshAuthSession.splitBaseUrl(url)
+        normalizedBase = normalizeBaseUrl(base)
+        authToken = token
+        DshAuthSession.configure(normalizedBase, authToken)
         generationCounter.incrementAndGet()
         closeAllEventSockets()
     }
@@ -508,7 +521,10 @@ class DshApiClient(baseUrl: String) {
             .replaceFirst("(?i)^https://".toRegex(), "wss://")
             .replaceFirst("(?i)^http://".toRegex(), "ws://") + path
         val request = try {
-            Request.Builder().url(url).build()
+            val builder = Request.Builder().url(url)
+            // 新版 dsh 令牌认证：WS 握手与 REST 同源，注入会话 Cookie（DshAuthSession 管理）
+            DshAuthSession.currentCookie()?.let { builder.header("Cookie", it) }
+            builder.build()
         } catch (e: IllegalArgumentException) {
             throw IllegalStateException("invalid base url for event stream: ${currentBaseUrl()}", e)
         }

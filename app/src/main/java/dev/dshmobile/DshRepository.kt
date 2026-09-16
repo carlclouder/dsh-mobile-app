@@ -151,6 +151,8 @@ object DshRepository {
             if (initialized) return
             settingsStore = SettingsStore(context.applicationContext)
             apiClient = DshApiClient(SettingsStore.DEFAULT_BASE_URL)
+            // 新版 dsh 令牌认证适配：注册 Cookie 持久化（会话 Cookie 30 天内跨 App 重启复用）
+            dev.dshmobile.network.DshAuthSession.attach(context.applicationContext)
             initialized = true
         }
     }
