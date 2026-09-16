@@ -15,6 +15,12 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 手机（<phone-model>，Android）已通过 Tailscale 与 PC 组网，经
 `https://<PC-name>.tailnet.ts.net`（tailscale serve 隧道）可访问该 GUI。
 
+> **认证链路变更（2026-09-16）**：dsh 自 0.1.2-rc.1 起启用链接一次性令牌认证，裸地址返回 401；
+> 0.1.5 起 App 所需的 WebSocket 事件流端点亦被移除。现已在宿主侧安装 **免令牌网关插件**
+> （`dsh-auth-gateway`，跑在 dsh 进程内），Tailscale Serve 转发目标由 3080 改为 **3081**（网关），
+> 由网关自动注入会话 Cookie，使 App 可用**裸地址（无令牌）**访问。
+> 详见 `docs/dsh-auth-gateway-plugin.md`；App 侧协议适配见 §13。
+
 现状痛点：手机浏览器直接打开 PC 网页，排版拥挤、无后台通知、多会话切换困难。
 
 目标：开发一个原生安卓 APP，满足三大硬需求：
@@ -27,7 +33,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 
 | # | 需求 | 结论 |
 |---|------|------|
-| 2.1 | 连接走 Tailscale serve 隧道，地址 `https://<PC-name>.tailnet.ts.net`，APP 内可改 | ✅ |
+| 2.1 | 连接走 Tailscale serve 隧道，地址 `https://<PC-name>.tailnet.ts.net`，APP 内可改 | ✅ **裸地址与带令牌链接均受支持**（裸地址由宿主侧免令牌网关补认证，见 `docs/dsh-auth-gateway-plugin.md`） |
 | 2.2 | 回合完成通知（前台服务保活，息屏可达） | ✅ |
 | 2.3 | 多会话列表（全部项目、三态分组、快速进入） | ✅ |
 | 2.4 | 完整交互：看对话、发消息、停轮次、答审批/提问 | ✅ |
@@ -101,6 +107,10 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 - DSH 显式拒绝 `--host 0.0.0.0`（startup.js L40，安全设计：远程访问无认证层前不开放）。
   精确表述：仅 0.0.0.0 全接口绑定被禁；但指定具体 IP 绑定仍无 TLS 且需改服务端启动参数，
   违反 v1"不改服务端"约束，且 serve 隧道已实测可用（HTTP 200）——**serve 隧道是既定入口**。
+- **认证层现状（2026-09-16 更新）**：dsh ≥0.1.2-rc.1 已内置链接一次性令牌认证（裸地址 401），
+  v1 时代"无认证层"的前提不再成立。现由宿主侧插件 `dsh-auth-gateway` 在 127.0.0.1:3081
+  提供免令牌网关（进程内反向代理 + 自动注入会话 Cookie），serve 隧道指向该端口；
+  **App 侧只填裸地址即可**，令牌不再出现在 App 配置里。
 - `*.ts.net` 证书由 **Let's Encrypt 公共 CA 签发**（Tailscale 官方文档），Android
   WebView/OkHttp 走系统信任链**零配置受信**，无需安装任何根证书（v1.0 的"tailnet CA"
   表述有误，已修正）。
@@ -144,10 +154,12 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 └───────────────────────────────┬────────────────────────────────────┘
                                 │ Tailscale 内网 (tailnet)
                                 │ https://<PC-name>.tailnet.ts.net
-                ┌───────────────▼────────────────┐
-                │ tailscale serve → 127.0.0.1:3080 │
-                │ DSH Web GUI (dsh web)             │
-                └──────────────────────────────────┘
+                ┌───────────────▼──────────────────────────────┐
+                │ tailscale serve → 127.0.0.1:3081              │
+                │ dsh-auth-gateway 插件（免令牌网关，注入凭证）   │
+                │        ↓ 127.0.0.1:3080                       │
+                │ DSH Web GUI (dsh web)                         │
+                └──────────────────────────────────────────────┘
 ```
 
 职责划分原则：
@@ -519,7 +531,11 @@ onCreate:
 
 ```
 dsh-mobile-app/
-├── docs/DESIGN.md                 # 本文档
+├── docs/DESIGN.md                 # 本文档（含 §13 新版 dsh 协议适配）
+├── docs/ARCHITECTURE.md           # 架构总览（访问链路）
+├── docs/dsh-auth-gateway-plugin.md# 宿主侧免令牌网关插件设计/验证/部署/回滚
+├── tools/dsh-auth-gateway/        # 该插件源码（package.json + cordis.patch.yml + lib/index.mjs）
+├── tools/                         # 开发期辅助脚本（RPC 参数探测、端点提取、profile 修复等）
 ├── app/
 │   ├── build.gradle.kts           # compileSdk 35 / targetSdk 35 / AGP 8.6.x ★P2修正
 │   └── src/main/
@@ -657,3 +673,61 @@ tools/setup_build_env.ps1 步骤:
 | P2 | WS 保活缺失 | §5.1 pingInterval=30s、§5.2 ConnectivityManager 网络切换立即重连 |
 | P2 | "IP 直连不可行"论证过强 | §3.4 精确表述（仅 0.0.0.0 被禁；结论不变，论据修正） |
 | P2 | cancel 误报为完成 | §3.2、§5.2 cancelSuppressUntil 3s 抑制窗、§5.5 停止按钮登记 |
+
+---
+
+## 13. 新版 dsh 协议适配（2026-09-16，宿主升级 0.1.5-rc.2 后）
+
+宿主从 0.1.1-rc.2 升级到 **0.1.5-rc.2** 后，App 全部请求失败（会话列表"不可达"）。逐层定位后有**四处破坏性变更**，均已适配并实测。
+
+### 13.1 四层变更与适配
+
+| 层 | 新版行为（实测证据） | App 适配 |
+|---|---|---|
+| **认证** | 链接一次性令牌认证：裸地址 401；带 `?token=` 首次访问 303 + 下发会话 Cookie（默认 30 天） | 新增 `network/DshAuthSession.kt`：地址拆分 `base` 与 `?token=`、令牌换 Cookie、Cookie 持久化（SharedPreferences）、401 自愈、WebSocket 握手注入 Cookie；两种地址形式（裸 / 带令牌）均支持 |
+| **协议** | RPC 路径与 method 由点号改**斜杠**（`session.list` → `session/list`），参数**包一层 `args`**（`{"args":{...}}`）；旧式点号路径返回 404 | `DshApiClient.call` 双协议自适应 + **双向自愈**（任一协议 404 即换另一种重试并记忆，避免一次误判被锁死） |
+| **事件通道** | **`/api/events.mux`、`/api/events.host` 两条 WebSocket 事件流被移除**（带有效 Cookie 仍 404/升级被断；官方 WebUI 自身改为 HTTP 轮询） | `EventStreamService` 改为**每 3 秒 `session/list` 全量对账**（状态机、三类通知、会话列表、工作区全部由同一条权威链路驱动，与"下拉刷新"一致）；WS 代码保留但不再启动。会话页在"本会话运行中"期间每 2 秒轮询 `session/page` 对账 |
+| **端点与参数** | 历史端点改名 `session.history` → `session/page`，**必须带 `throughSeq`（=会话当前游标，越界报错）**，响应外层字段 `events` → `records`；发消息 `session/prompt` 的 `requestId` 为**必填** | `DshApiClient`：`modernMethod` 映射端点、`modernArgs` 包装参数；游标两路解析（`session/list` 的 `projections.asOfSeq` → 兜底从 `past cursor N` 错误消息解析，因旧会话 asOfSeq 为 -1）；`records`/`events` 双形状兼容；`sessionPrompt` 补 `requestId` |
+
+### 13.2 关键实现事实（源码/实测佐证）
+
+- 令牌与 Cookie 的关系：官方 `dsh-web-app` 打印的 `dsh web: http://.../?token=<令牌>` 由
+  `connection.authenticatedUrl(baseUrl)` 生成（`dsh-client-connection` 源码：把 `launchToken` 写进 `?token=`）；
+  令牌是**进程内变量**，同进程可反复取用，Cookie 才是对外长期凭证。
+- 参数包装规则（官方前端分发器逐字）：`session/list → args._request`、
+  `session/page → args.request = {address:{kind,sessionId}, throughSeq}`、
+  其余会话/工作区操作 → `args.request = <旧版 payload>`。
+- `SessionPromptRequest` 的 schema 必需字段：`requestId`、`sessionId`、`mode`（`queue` | `steer`）、`content`。
+  **官方 WebUI 发消息同样用 `mode:"queue"`**——会话运行中发送会排入队列、等回合结束后自动执行（App 已补"已加入队列"提示，见 §13.4）。
+
+### 13.3 宿主侧配套（免令牌网关插件）
+
+为满足"App 只用裸地址、无感、随 dsh 启动、不是独立维护的东西"的要求，宿主侧安装
+**`dsh-auth-gateway` 插件**（跑在 dsh 进程内的反向代理，自动注入会话 Cookie）：
+
+```
+手机 ──443──▶ Tailscale Serve ──▶ 127.0.0.1:3081（插件网关）──▶ 127.0.0.1:3080（dsh）
+```
+
+设计与验证详见 **`docs/dsh-auth-gateway-plugin.md`**。App 侧无需任何令牌配置。
+
+### 13.4 App 侧发送反馈补充
+
+会话运行中发送消息时，dsh 按 `mode=queue` 排队（非丢失）。App 在受理成功且发送前会话处于运行中时，
+提示"已加入队列：当前回合运行中，这条消息会在回合结束后自动发送"（`ConversationViewModel.send`）。
+
+### 13.5 验证状态
+
+- **已验证**（模拟器连真实宿主）：连接状态"已连接"；会话列表分组与标题正确；进入会话历史完整渲染；
+  发送消息后 agent 真实回复；两种地址形式（裸 / 带令牌）均可连接；网关插件在隔离实例下
+  裸访问 200、对照直连 401、与 dsh 同进程。
+- **未验证**：真机经 Tailscale Serve 的完整链路（服务器侧已 curl 验证）；插件在主服务重启后的实际生效；
+  审批/提问应答在新版下的行为（测试环境无可触发事件）。
+
+### 13.6 依赖的宿主侧前置条件
+
+| 项 | 值 |
+|---|---|
+| Tailscale Serve 目标 | `http://127.0.0.1:3081`（插件网关端口） |
+| 插件安装 | `dsh plugin --profile web add <tgz>`，重启 dsh 生效 |
+| 每次 `plugin add` 后必查 | `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles` 不得含 `dsh-file-upload`（第三方版与 0.1.5 内置同名，会导致 `duplicate loader entry id` 启动即崩） |

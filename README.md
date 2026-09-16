@@ -242,7 +242,9 @@ $env:ANDROID_HOME="D:\dshm\.toolchain\android-sdk"
 ## 相关文档
 
 - [USAGE.md](USAGE.md) — 完整功能使用说明
-- [docs/DESIGN.md](docs/DESIGN.md) — 技术设计文档
+- [docs/DESIGN.md](docs/DESIGN.md) — 技术设计文档（§13 为新版 dsh 协议适配记录）
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 系统架构总览
+- [docs/dsh-auth-gateway-plugin.md](docs/dsh-auth-gateway-plugin.md) — 宿主侧免令牌网关插件（让 App 用裸地址免令牌访问）
 - [PROGRESS.md](PROGRESS.md) — 开发进度台账
 
 ## 许可证
