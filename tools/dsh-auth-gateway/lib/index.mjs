@@ -40,7 +40,15 @@ export const Config = z.object({
 	/** 上游端口：dsh 自身 Web 服务端口。 */
 	upstreamPort: z.number().default(3080),
 	/** 会话 Cookie 主动刷新间隔（毫秒），默认 6 小时；401 时会立即被动刷新。 */
-	cookieRefreshMs: z.number().default(6 * 60 * 60 * 1000)
+	cookieRefreshMs: z.number().default(6 * 60 * 60 * 1000),
+	/**
+	 * 是否放行"经 Tailscale Serve 转发进来的请求"（默认开启）。
+	 * 开启后：Host 命中 dsh 受信权威（`--trusted-host` 名单）且来源为 loopback 的请求
+	 * 直接视为已认证 —— 手机用裸地址即可访问，且 Serve 仍指向 3080、无需改动任何启动脚本。
+	 * 安全含义：信任边界落在 Tailscale 私有网络（tailnet 内可达者免令牌；公网仍不可达）。
+	 * 关闭后恢复 dsh 原生认证（裸地址 401，需带令牌链接或经下方反向代理端口访问）。
+	 */
+	allowTailnetForwarded: z.boolean().default(true)
 });
 
 /**
@@ -52,6 +60,52 @@ export function apply(ctx, config) {
 	const upstreamHost = config.upstreamHost ?? "127.0.0.1";
 	const upstreamPort = config.upstreamPort ?? 3080;
 	const upstreamAuthority = `${upstreamHost}:${upstreamPort}`;
+
+	// -------------------------------------------------------------------
+	// 免令牌放行：让"经 Tailscale Serve 转发进来"的请求直接通过认证
+	// -------------------------------------------------------------------
+	// 为什么需要它：用户环境的启动脚本会把 Tailscale Serve 固定指向 3080（dsh 本体），
+	// 因此"另起网关端口 + Serve 指向网关"的路线会被脚本覆盖。改为在 dsh 自己的认证判定上
+	// 放行 Serve 转发的请求，则 Serve 保持 3080 不动、任何启动脚本都无需修改。
+	//
+	// 判定条件（两个同时满足才放行，避免扩大范围）：
+	//   ① 来源地址是 loopback —— Tailscale Serve 是本机进程，转发进来的请求必来自 127.0.0.1；
+	//   ② Host 命中 dsh 的受信权威名单（--trusted-host 传入的 tailnet 域名）——
+	//      本机浏览器用 127.0.0.1:3080 访问时 Host 不受信，仍走原生认证。
+	// 关掉配置项 allowTailnetForwarded 即可恢复原生认证行为。
+	if (config.allowTailnetForwarded !== false) {
+		const trustedHosts = ctx.connection?.trustedHosts;
+		const trustedList = Array.isArray(trustedHosts)
+			? trustedHosts
+			: typeof trustedHosts?.[Symbol.iterator] === "function"
+				? Array.from(trustedHosts)
+				: [];
+		const isLoopback = (address) =>
+			address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+		const isForwardedFromTailnet = (request) => {
+			if (!isLoopback(request?.socket?.remoteAddress)) return false;
+			const host = String(request?.headers?.host ?? "").split(":")[0].toLowerCase();
+			if (host === "") return false;
+			return trustedList.some((entry) => String(entry).split(":")[0].toLowerCase() === host);
+		};
+		const originalRejection = ctx.connection.requestRejection.bind(ctx.connection);
+		ctx.connection.requestRejection = (request) => {
+			const verdict = originalRejection(request);
+			if (verdict === undefined) return undefined; // 原生认证已通过
+			return isForwardedFromTailnet(request) ? undefined : verdict;
+		};
+		// 首页（HTML 界面）走的是另一条认证入口 authorizeIndex（不在 requestRejection 上）：
+		// 实测只补 requestRejection 时 API 已放行、但根路径仍 401。此处对 Serve 转发的请求
+		// 直接放行（返回 true 表示"可以渲染首页"，不调用原生逻辑，避免它已写出 303/401 响应后冲突）。
+		const originalAuthorizeIndex = ctx.connection.authorizeIndex.bind(ctx.connection);
+		ctx.connection.authorizeIndex = (req, res) => {
+			if (isForwardedFromTailnet(req)) return true;
+			return originalAuthorizeIndex(req, res);
+		};
+		console.log(
+			`[auth-gateway] 已开启 tailnet 免令牌放行（受信 Host: ${trustedList.join(", ") || "（空）"}）`
+		);
+	}
 
 	/** 会话 Cookie 缓存（进程内单份；上游按 Host 绑定签发，故与转发时的 Host 必须一致）。 */
 	let cookieValue = null;
