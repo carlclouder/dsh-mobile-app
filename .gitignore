@@ -31,3 +31,8 @@ app/personal.properties
 
 # Private deployment info (real tailnet domain/IP/account — never commit)
 docs/private/
+
+# Gradle 构建输出日志（过程产物，不入库）
+build_log*.txt
+build_rel_log.txt
+
