@@ -29,6 +29,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.Response
@@ -65,6 +67,16 @@ class EventStreamService : android.app.Service() {
 
     /** 轮询协程（新版 dsh 无 WS 事件流，以周期全量对账驱动状态；见 startStreams 注释）。 */
     private var pollJob: Job? = null
+
+    /** 工作区订阅协程（新版 dsh：工作区与归档集合只存在于 `/api/remote.mux` 的 workspace/follow 流）。 */
+    private var workspaceJob: Job? = null
+
+    /**
+     * 工作区流是否已就绪（收到过 baseline）。
+     * 新版宿主的 REST 端点 `workspace.list` 已不存在（实测 404），流就绪后不再发该请求；
+     * 旧版宿主（点号协议）没有此流，仍走 REST 对账。
+     */
+    @Volatile private var workspaceStreamReady = false
 
     /** 双流开启状态跟踪（连接状态条数据源）。 */
     @Volatile private var hostOpened = false
@@ -243,6 +255,159 @@ class EventStreamService : android.app.Service() {
     private fun startStreams() {
         pollJob?.cancel()
         pollJob = serviceScope.launch { runPollingLoop() }
+        workspaceJob?.cancel()
+        workspaceJob = serviceScope.launch { runWorkspaceStream() }
+    }
+
+    // -------------------------------------------------------------------
+    // 工作区订阅（新版 dsh：/api/remote.mux 上的 workspace/follow 流）
+    // -------------------------------------------------------------------
+
+    /** 单条服务端帧的解析结果（只保留本类关心的三种分支）。 */
+    private sealed interface MuxServerFrame {
+        /** item 帧携带的业务帧（JsonObject）。 */
+        data class Item(val value: kotlinx.serialization.json.JsonObject) : MuxServerFrame
+        /** end / error 或无法解析的帧：表示该逻辑流已终止。 */
+        data object Terminal : MuxServerFrame
+    }
+
+    /**
+     * 解析 `/api/remote.mux` 的一条服务端文本帧。
+     * 协议（dsh-api-gateway/stream-protocol.js 实证）：
+     * `{"type":"item","streamId":..,"value":<业务帧>}` / `{"type":"end",...}` / `{"type":"error",...}`。
+     * 只做最小解析：拿到 item 的 value 即可，其余一律视为终止（触发重连）。
+     */
+    private fun parseMuxFrame(text: String): MuxServerFrame {
+        val obj = try {
+            kotlinx.serialization.json.Json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+        } catch (e: Exception) {
+            null
+        } ?: return MuxServerFrame.Terminal
+        return when ((obj["type"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull) {
+            "item" -> (obj["value"] as? kotlinx.serialization.json.JsonObject)
+                ?.let { MuxServerFrame.Item(it) } ?: MuxServerFrame.Terminal
+            else -> MuxServerFrame.Terminal
+        }
+    }
+
+    /**
+     * 处理一个工作区业务帧（WorkspaceFollowFrame）：
+     * - baseline：全量 items + 归档集合（首次订阅即拿到，替代已失效的 workspace.list）；
+     * - upsert / remove：增量维护列表（复用 upsertWorkspace 的合并语义，避免整表覆盖）；
+     * - archived：归档集合替换（决定列表隐藏与是否弹通知）；
+     * - order：仅影响展示顺序，按 workspaceId 排序即可，忽略。
+     */
+    private fun handleWorkspaceFrame(wrapper: kotlinx.serialization.json.JsonObject) {
+        val type = (wrapper["type"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: return
+        // 业务载荷在内层 value 里（Node 直连实测：{"type":"baseline","value":{items,archivedSessionIds}}）；
+        // 容错：内层缺失时回退外层，兼容扁平形状。
+        val frame = (wrapper["value"] as? kotlinx.serialization.json.JsonObject) ?: wrapper
+        val payload = (frame["value"] as? kotlinx.serialization.json.JsonObject) ?: frame
+        when (type) {
+            "baseline" -> {
+                val items = (payload["items"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { el ->
+                    try {
+                        dev.dshmobile.model.DshJson.decodeFromJsonElement(
+                            dev.dshmobile.model.WorkspaceView.serializer(), el)
+                    } catch (e: Exception) {
+                        null
+                    }
+                } ?: emptyList()
+                DshRepository.publishWorkspaces(items.sortedBy { it.workspaceId })
+                applyArchivedSet(payload["archivedSessionIds"])
+                workspaceStreamReady = true
+            }
+            "upsert" -> ((payload["workspace"] ?: frame["workspace"]) as? kotlinx.serialization.json.JsonObject)?.let { ws ->
+                try {
+                    upsertWorkspace(dev.dshmobile.model.DshJson.decodeFromJsonElement(
+                        dev.dshmobile.model.WorkspaceView.serializer(), ws))
+                } catch (e: Exception) {
+                    android.util.Log.w(TAG, "workspace upsert parse failed: ${e.message}")
+                }
+            }
+            "remove" -> {
+                val id = (payload["workspaceId"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                if (id != null) {
+                    DshRepository.publishWorkspaces(
+                        DshRepository.workspaces.value.filter { it.workspaceId != id })
+                }
+            }
+            "archived" -> applyArchivedSet(payload["archivedSessionIds"])
+            else -> Unit   // order 等帧不影响本端展示语义
+        }
+    }
+
+    /** 应用归档集合：注入状态机（快照排除归档 → 列表隐藏/不通知）并刷新快照。 */
+    private fun applyArchivedSet(element: kotlinx.serialization.json.JsonElement?) {
+        val ids = (element as? kotlinx.serialization.json.JsonArray)
+            ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
+            ?: return
+        synchronized(machineLock) {
+            stateMachine.setArchivedSessionIds(ids)
+            publishSnapshot()
+        }
+    }
+
+    /**
+     * 工作区流的永久回路：连 `/api/remote.mux` → 开 workspace/follow 流 → 收帧。
+     * 断线（end/error/socket 关闭）后退避重连；换址由外层 restartStreams 触发取消重建。
+     */
+    private suspend fun runWorkspaceStream() {
+        var backoffMs = 1_000L
+        while (coroutineContext.isActive) {
+            val streamId = java.util.UUID.randomUUID().toString()
+            val closed = CompletableDeferred<Unit>()
+            val openedFlag = java.util.concurrent.atomic.AtomicBoolean(false)
+            // 开流请求：{"type":"open","streamId","endpoint","payload"}
+            // payload 必须恰含一个 args 字段（服务端实测："Remote payload must contain exactly one plain-object args field"）；
+            // workspace/follow 无参 → args 为空对象。
+            val openFrame = kotlinx.serialization.json.buildJsonObject {
+                put("type", "open")
+                put("streamId", streamId)
+                put("endpoint", "workspace/follow")
+                put("payload", kotlinx.serialization.json.buildJsonObject {
+                    put("args", kotlinx.serialization.json.JsonObject(emptyMap()))
+                })
+            }
+            val listener = object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                    openedFlag.set(true)
+                    webSocket.send(openFrame.toString())
+                }
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    try {
+                        when (val frame = parseMuxFrame(text)) {
+                            is MuxServerFrame.Item -> handleWorkspaceFrame(frame.value)
+                            MuxServerFrame.Terminal -> closed.complete(Unit)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w(TAG, "workspace frame handling failed: ${e.message}")
+                    }
+                }
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    closed.complete(Unit)
+                }
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    closed.complete(Unit)
+                }
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
+                    android.util.Log.w(TAG, "workspace stream failed: ${t.message}")
+                    closed.complete(Unit)
+                }
+            }
+            try {
+                DshRepository.apiClient.openEventStream("/api/remote.mux", listener)
+            } catch (e: IllegalStateException) {
+                DshRepository.publishConnection(DshRepository.ConnectionState.UNREACHABLE)
+                delay(60_000L)
+                continue
+            }
+            closed.await()
+            workspaceStreamReady = false
+            if (openedFlag.get()) backoffMs = 1_000L
+            delay(backoffMs)
+            backoffMs = (backoffMs * 2).coerceAtMost(15_000L)
+        }
     }
 
     /** 轮询主循环：全量对账 + 连接状态发布（失败连续 3 次判不可达）。 */
@@ -463,7 +628,10 @@ class EventStreamService : android.app.Service() {
             is ApiResult.NetError ->
                 android.util.Log.w(TAG, "baseline session.list net error: ${result.throwable.message}")
         }
-        // 工作区列表（M4 新建会话数据源 + 需求 2.9.3 归档集注入；失败不阻塞会话链路）
+        // 工作区列表（旧版宿主的 REST 路径）。新版 dsh 已移除 workspace.list（实测 404），
+        // 工作区与归档集合改由 `/api/remote.mux` 的 workspace/follow 流提供（见 runWorkspaceStream）；
+        // 流就绪后跳过本段，避免每轮轮询发一次注定 404 的请求。
+        if (workspaceStreamReady) return sessionListOk
         when (val result = DshRepository.apiClient.workspaceList()) {
             is ApiResult.Ok -> {
                 DshRepository.publishWorkspaces(result.value.items)
