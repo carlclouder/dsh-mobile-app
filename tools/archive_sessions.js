@@ -2,8 +2,9 @@
  * 归档"废弃会话"：默认归档 cwd = C:\Users\Carl 的无标题会话（用户在 App 上看到的 Carl 条目）。
  * 归档可逆（宿主支持取消归档）。
  *
- * 用法：node archive_sessions.js            → 归档 Carl 目录下的无标题会话
- *       node archive_sessions.js --dry-run  → 只列出将归档的会话，不执行
+ * 用法：node archive_sessions.js                    → 归档 Carl 目录下的无标题会话
+ *       node archive_sessions.js --all-untitled     → 归档【全部】无标题会话（App 会显示为目录末段标题，多为测试残留）
+ *       node archive_sessions.js --dry-run          → 只列出将归档的会话，不执行（可与上一条组合）
  */
 const path = require("node:path");
 const http = require("node:http");
@@ -14,6 +15,7 @@ const WebSocket = require(path.join(DSH_NODE_MODULES, "ws"));
 const LOG = "C:/Users/Carl/.dsh/logs/dsh-webui.log";
 const PORT = 3080;
 const DRY_RUN = process.argv.includes("--dry-run");
+const ALL_UNTITLED = process.argv.includes("--all-untitled");
 const TARGET_CWD = "c:\\users\\carl";
 
 const readToken = () => {
@@ -68,10 +70,10 @@ const readArchived = async (cookie) => {
 	const targets = items.filter((it) =>
 		!archivedSet.has(String(it.sessionId)) &&
 		!it.projections?.values?.title &&
-		String(it.cwd ?? "").toLowerCase() === TARGET_CWD
+		(ALL_UNTITLED || String(it.cwd ?? "").toLowerCase() === TARGET_CWD)
 	);
 
-	console.log(`归档前：归档集合 ${before.length} 个；本次目标 ${targets.length} 个（cwd=${TARGET_CWD} 且无标题且未归档）`);
+	console.log(`归档前：归档集合 ${before.length} 个；本次目标 ${targets.length} 个（${ALL_UNTITLED ? "全部无标题会话" : `cwd=${TARGET_CWD}`} 且未归档）`);
 	for (const it of targets) console.log(`  - ${it.sessionId} | ${it.cwd}`);
 
 	if (DRY_RUN) {
@@ -94,6 +96,6 @@ const readArchived = async (cookie) => {
 	const after = await readArchived(cookie);
 	console.log(`\n归档后：归档集合 ${after.length} 个（增加 ${after.length - before.length}）`);
 	console.log(`成功条数：${ok}/${targets.length}`);
-	const stillVisible = items.filter((it) => !new Set(after).has(String(it.sessionId)) && !it.projections?.values?.title && String(it.cwd ?? "").toLowerCase() === TARGET_CWD);
+	const stillVisible = items.filter((it) => !new Set(after).has(String(it.sessionId)) && !it.projections?.values?.title && (ALL_UNTITLED || String(it.cwd ?? "").toLowerCase() === TARGET_CWD));
 	console.log(`仍未归档的同目录无标题会话：${stillVisible.length} 个`);
 })();
