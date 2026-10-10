@@ -711,12 +711,47 @@ tools/setup_build_env.ps1 步骤:
 
 设计与验证详见 **`docs/dsh-auth-gateway-plugin.md`**。App 侧无需任何令牌配置。
 
-### 13.4 App 侧发送反馈补充
+### 13.4 工作区与归档集合改由 WebSocket 流提供（2026-09-16 手机实测报障）
+
+**现象**（用户原话）："app端出现工作区 子目录消失，所有会话无分类，大量历史会话重新显示"。
+
+**根因**（源码 + 实测双重证据）：新版 dsh **不存在 `workspace/list` 端点**，工作区列表与
+归档集合（`archivedSessionIds`）只通过 **WebSocket 端点 `/api/remote.mux`** 上的
+`workspace/follow` 流下发。App 此前仍调用旧 REST 端点（404），拿不到数据 → 分组失效、
+归档过滤失效（归档会话全部重新显示、并触发通知）。
+
+**实现**（`EventStreamService.runWorkspaceStream`）：
+
+| 环节 | 规格（均经实测校准） |
+|---|---|
+| 载体 | `ws(s)://<base>/api/remote.mux`（`REMOTE_STREAM_MUX_PATH`，dsh-api-gateway 源码常量） |
+| 开流帧 | `{"type":"open","streamId":"<uuid>","endpoint":"workspace/follow","payload":{"args":{}}}` |
+| 帧外壳 | `{"type":"item","streamId":..,"value":<业务帧>}` / `{"type":"end","streamId"}` / `{"type":"error",…}` |
+| baseline 帧 | `{"type":"baseline","value":{"items":[WorkspaceView…],"archivedSessionIds":[…]}}` ← **业务数据在内层 `value`** |
+| 增量帧 | `upsert{workspace}` / `remove{workspaceId}` / `order{workspaceIds}` / `archived{archivedSessionIds}` |
+| 心跳 | 服务端每 2 秒发 WS Ping，OkHttp 自动回 Pong |
+| 断线 | `end`/`error`/socket 关闭 → 退避重连（1s 起，上限 15s），重连时按当前基址重建 URL |
+
+**两个实测坑（已固化到代码注释）**：
+
+1. **开流 payload 必须恰含一个 `args` 字段**：`payload:{}` 会被服务端拒绝
+   （`gateway/internal: Remote payload must contain exactly one plain-object args field`）；
+2. **baseline 业务数据在内层 `value`**：按外层取会静默拿空（表现为界面工作区只有"全部"、归档会话重新出现）。
+
+**配套改动**：`runBaseline` 的轮询对账在**流就绪后跳过** `workspace.list` 调用（新版必然 404，
+省一次无效请求）；旧版宿主（点号协议）无此流，仍走 REST 路径。
+
+**验证**（模拟器连真实宿主）：工作区 chips 恢复显示 `全部 | dsh-mobile-app | Quantitative_investment_system`，
+会话按工作区分组、归档会话不再出现；单测 101/101、release v0.1.183。
+
+**探测工具**：`tools/probe_remote_mux.js`（Node 直连该 WS 打印原始帧，用于校准协议）。
+
+### 13.5 App 侧发送反馈补充
 
 会话运行中发送消息时，dsh 按 `mode=queue` 排队（非丢失）。App 在受理成功且发送前会话处于运行中时，
 提示"已加入队列：当前回合运行中，这条消息会在回合结束后自动发送"（`ConversationViewModel.send`）。
 
-### 13.5 验证状态
+### 13.6 验证状态
 
 - **已验证**（模拟器连真实宿主）：连接状态"已连接"；会话列表分组与标题正确；进入会话历史完整渲染；
   发送消息后 agent 真实回复；两种地址形式（裸 / 带令牌）均可连接；网关插件在隔离实例下
@@ -724,7 +759,7 @@ tools/setup_build_env.ps1 步骤:
 - **未验证**：真机经 Tailscale Serve 的完整链路（服务器侧已 curl 验证）；插件在主服务重启后的实际生效；
   审批/提问应答在新版下的行为（测试环境无可触发事件）。
 
-### 13.6 依赖的宿主侧前置条件
+### 13.7 依赖的宿主侧前置条件
 
 | 项 | 值 |
 |---|---|
