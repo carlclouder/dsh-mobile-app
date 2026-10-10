@@ -63,7 +63,8 @@ function exchangeCookie(token) {
 		count += 1;
 		const text = data.toString();
 		console.log(`\n--- 帧 ${count}（${text.length} 字节）---`);
-		console.log(text.slice(0, 900));
+		// 完整打印（baseline 帧较大，截断会导致 JSON 不完整而无法被解析工具消费）
+		console.log(text);
 		if (count >= 3) {
 			console.log("\n已收到 3 帧，关闭探测连接");
 			ws.close();
