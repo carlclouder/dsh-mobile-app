@@ -21,6 +21,8 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 > 由网关自动注入会话 Cookie，使 App 可用**裸地址（无令牌）**访问。
 > 详见 `docs/dsh-auth-gateway-plugin.md`；App 侧协议适配见 §13。
 
+> **当前运行链路（2026-10-13）**：会话列表由前台服务每 3 秒调用 `session.list` 对账；会话页打开时读取 `session/page`，运行期间每 2 秒轮询一次历史；新版宿主的工作区与归档数据通过 `/api/remote.mux` 的 `workspace/follow` 流更新。旧版 `/api/events.host` 与 `/api/events.mux` 会话事件流已停用。下文早期协议、双流伪码与原始设计记录仅用于理解历史版本，当前行为以 §13.1、§13.4、`docs/ARCHITECTURE.md` 和源码为准。
+
 现状痛点：手机浏览器直接打开 PC 网页，排版拥挤、无后台通知、多会话切换困难。
 
 目标：开发一个原生安卓 APP，满足三大硬需求：
@@ -53,7 +55,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 
 ## 3. 关键技术事实（源码调研钉死，非猜测）
 
-以下结论全部来自 `@deepseek-ai/dsh@0.1.0-rc.8` 安装包源码阅读与实机 API 调用：
+以下结论全部来自 `@deepseek-ai/dsh@0.1.0-rc.8` 安装包源码阅读与实机 API 调用，是初版协议记录。新版端点变化及当前运行方式见 §13.1 和文档开头的“当前运行链路”。
 
 ### 3.1 通信协议（dsh-host-apiproxy / dsh-client-connection）
 
@@ -62,7 +64,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
   `{"type":"client-request","rpcId":"<任意串>","method":"<method>","payload":{...}}`，
   响应体 `{"type":"server-response","rpcId":..., "result":{"ok":true,"value":...}}` 或
   `{"ok":false,"error":{"code":...,"message":...,"details":{}}}`。
-- **事件流**：两条**只下行** WebSocket：
+- **事件流（初版，已停用）**：两条**只下行** WebSocket：
   - `wss://…/api/events.mux` —— 会话事件（对话块、审批、提问、队列）
   - `wss://…/api/events.host` —— 宿主事件（会话增删、running 状态翻转）
   每条 WS 文本消息为**信封** `{"type":"server-request","rpcId":...,"method":...,"payload":<帧>}`；
@@ -78,7 +80,9 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
   （rpc.schema.js L110–113）。`not-pending` 表示该审批/提问**已在别处被处理**，
   正确行为是撤通知并提示"已处理"，**不是重试**。
 
-### 3.2 通知判定信号与状态机（评审修正后）
+### 3.2 通知判定信号与状态机（初版事件流设计记录）
+
+本节按初版 host/mux 帧描述通知判定。当前实现不再启动这两条会话事件流，而是用 `session.list` 周期快照驱动状态机；对应行为以 §13.1 与 `EventStreamService.runBaseline()` 为准。
 
 | 信号 | 帧 | 判定与修正后规则 |
 |------|----|------|
@@ -126,8 +130,8 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
   `ForegroundServiceStartNotAllowedException` 拒绝直到用户手动打开 APP。整夜挂机场景
   必然超限 → **本设计不使用 dataSync，改用 specialUse 类型**（侧载单机应用无 Play
   审核障碍），并实现 onTimeout 优雅降级兜底。
-- **网络切换**：移动网络/WiFi/Tailscale 隧道重建时 WS 会半开，需
-  ConnectivityManager 监听 + 立即重连。
+- **网络切换**：移动网络/WiFi/Tailscale 隧道重建时，当前工作区订阅流可能断开；由
+  ConnectivityManager 监听并立即恢复该流。会话状态和历史由 HTTP 对账更新。
 
 ## 4. 总体架构
 
@@ -145,7 +149,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 │         │ 调用                                       │ 状态事件   │
 │  ┌──────▼─────────┐   ┌──────────────────────────────▼─────────┐ │
 │  │ DshApiClient   │   │ EventStreamService（前台服务）           │ │
-│  │ OkHttp 单次调用 │   │ specialUse 类型 + 双 WS + 保活 + 通知   │ │
+│  │ HTTP RPC/查询  │   │ specialUse + 会话对账 + 工作区流 + 通知 │ │
 │  └──────┬─────────┘   └──────────────────────────────┬─────────┘ │
 │         │                        ┌───────────────────▼─────────┐ │
 │  ┌──────▼─────────┐              │ NotificationHelper           │ │
@@ -164,7 +168,7 @@ PC（<PC-name>）上运行 DeepSeek Harness Web GUI（`dsh web`，监听 127.0.0
 
 职责划分原则：
 
-- **原生负责**：会话列表、对话页（原生 Compose 渲染，§5.5）、状态机、通知、设置、审批快捷按钮——这些需要后台存活与系统级能力，且对话内容直接用 DSH RPC 消费（session.history/session.prompt/流式事件）。
+- **原生负责**：会话列表、对话页（原生 Compose 渲染，§5.5）、状态机、通知、设置、审批快捷按钮——这些需要后台存活与系统级能力；会话内容通过 `session/page` 查询，发消息通过 `session/prompt` 提交。
 
 ## 5. 模块设计（含伪码）
 
@@ -195,7 +199,9 @@ class DshApiClient(baseUrl: String) {
 // RespondReceipt = Accepted | NotPending | BadResponse   ← not-pending 单列，供撤通知语义使用
 ```
 
-### 5.2 EventStreamService —— 前台服务（通知可靠性核心，评审修正版）
+### 5.2 EventStreamService —— 前台服务（初版双流伪码，已由 §13.1 替代）
+
+以下 `connectLoop`、host/mux 帧分发和相应评审说明记录了初版双 WebSocket 设计，不能作为当前运行流程。现在服务每 3 秒调用 `session.list` 进行 baseline 对账，并单独维持 `workspace/follow` 工作区流；当前实现见 `docs/ARCHITECTURE.md` 第 4.3 节和 §13.1、§13.4。
 
 ```kotlin
 // 文件: service/EventStreamService.kt  (~400行)
@@ -399,9 +405,8 @@ suspend fun workspaceArchiveSession(sessionId): ApiResult<Unit>       // call("w
 
 数据:
   - 打开时: api.sessionHistory(sessionId) → 渲染历史消息（user/assistant/tool 三类）
-  - 实时:   service 把 mux 流的 session/event 帧发布到 DshRepository.sessionEvents[sessionId]
-             → ViewModel 收集追加（assistant/message·user/message·tool/result·turn/start-end）
-  - running: repository 会话快照（host/session-status 推送）驱动"正在思考…"与停止按钮显隐
+  - 实时:   会话运行期间每 2 秒调用 sessionHistory(sessionId)，把历史快照合并进当前消息列表
+  - running: repository 的 session.list 周期快照驱动"正在思考…"与停止按钮显隐
 
 渲染（按事件类型）:
   user/message       → 右对齐气泡（文本）
@@ -409,10 +414,12 @@ suspend fun workspaceArchiveSession(sessionId): ApiResult<Unit>       // call("w
   tool/result        → 可折叠"工具结果"块（join content 字符串）
   turn/start|end/step → 更新 running/thinking 状态
 
-发送: TextField → api.sessionPrompt(...) → 乐观插入用户消息 → stop 时 notifyLocalCancel+cancel
+发送: TextField → ViewModel 追加带 UUID 本地键的 SENDING 用户消息 → api.sessionPrompt(...)
+  → 成功改为 SENT/QUEUED；业务错误改为 REJECTED；网络错误改为 UNCONFIRMED（不自动重发）
+  → 历史消息先按服务端 key 去重，再按相同正文与可信时间窗确认近期本地项；当前同键项优先，防止慢历史覆盖新实时项
+  → stop 时 notifyLocalCancel+cancel
 输入: v1 纯文本；v1 不做流式增量（running 时显示"正在思考…"，消息按 settled 事件呈现）
-其中实时帧路由：DshRepository.sessionEvents (SharedFlow<ConversationEvent>)，
-EventStreamService MUX 分支 publish；与状态机通知逻辑并行（通知继续，另加渲染分流）。
+会话事件流代码仍保留在源码中，但新版宿主运行路径不启动它；工作区流继续由 EventStreamService 消费，不承载对话消息。
 
 ### 5.5.2 Markdown 渲染升级 —— 自实现渲染器 → 封装渲染库（2026-08-25 规划）
 

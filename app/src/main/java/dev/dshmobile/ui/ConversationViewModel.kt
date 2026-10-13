@@ -15,13 +15,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import android.util.Log
+import java.util.UUID
+import kotlin.math.abs
 
 /**
  * 会话对话页 ViewModel（M5 原生：M5 修订后由 WebView 改为原生 Compose 渲染）。
  *
  * 数据三来源：
- * 1. 打开时 sessionHistory() 拉历史消息（user/assistant/tool）
- * 2. mux 流 session/event 帧（DshRepository.sessionEvents 分流）实时追加
+ * 1. 打开时通过 sessionHistory() 拉取历史消息（user/assistant/tool）
+ * 2. 会话运行期间每两秒轮询历史并合并新消息
  * 3. repository 会话快照驱动 running（"正在思考…" + 停止按钮显隐）
  *
  * 渲染单位：UiMessage（含 role / 正文 / 推理摘要 / 工具调用 / 工具错误标记）。
@@ -29,6 +31,8 @@ import android.util.Log
 class ConversationViewModel(private val sessionId: String) : ViewModel() {
 
     enum class Role { USER, ASSISTANT, TOOL, CONTEXT, ERROR }
+
+    enum class PromptDeliveryState { SENDING, SENT, QUEUED, REJECTED, UNCONFIRMED }
 
     /** 工具结果的展示单元：正文 + 宿主单行摘要（WebUI 紧凑渲染对齐，null=本地兜底首行）。 */
     data class ToolResultDisplay(
@@ -48,10 +52,16 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         val contextRole: String? = null,   // 仅 Role.CONTEXT："inject"=注入 | "recall"=召回（决定图标与文案）
         val contextLabel: String? = null,  // 仅 Role.CONTEXT：来源名（文件路径/插件名等），null=不显示
         val toolViewTitle: String? = null, // 仅 Role.TOOL 独立结果消息：宿主单行摘要
+        val deliveryState: PromptDeliveryState? = null, // 仅本地乐观用户消息
     )
 
     private val _messages = MutableStateFlow<List<UiMessage>>(emptyList())
     val messages: StateFlow<List<UiMessage>> = _messages.asStateFlow()
+
+    // 并发发送时，某一条失败不能把仍在等待的另一条请求误判成会话已停止。
+    private var pendingPromptCount = 0
+    private var pendingPromptAccepted = false
+    private var pendingPromptBaselineRunning = false
 
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running.asStateFlow()
@@ -64,6 +74,9 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
      */
     private val _historyLoaded = MutableStateFlow(false)
     val historyLoaded: StateFlow<Boolean> = _historyLoaded.asStateFlow()
+    // 首次加载失败仍要放行首屏滚动，但不代表已有可用于对账的成功历史快照。
+    private var hasSuccessfulHistorySnapshot = false
+    private val historyRequestGate = HistoryRequestGate()
 
     /** 上下文用量统计（需求：上下文使用统计），assistant/chunk 的 usage 累加。 */
     data class TokenStats(val input: Int = 0, val output: Int = 0, val cache: Int = 0)
@@ -101,7 +114,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     val steeringItemIds: StateFlow<Set<String>> = _steeringItemIds.asStateFlow()
 
     init {
-        viewModelScope.launch { loadHistory() }
+        viewModelScope.launch { loadHistoryIfIdle() }
         viewModelScope.launch { collectLiveEvents() }
         viewModelScope.launch { loadModels() }
         viewModelScope.launch { collectQueue() }
@@ -306,14 +319,31 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
 
     /**
      * 轮询刷新（新版 dsh ≥0.1.2-rc.1 移除了 WS 事件流，会话页实时性以周期 history 对账替代）：
-     * 由会话页在"本会话运行中"期间每 2 秒调用一次；loadHistory 是合并式可重入（P1-1 修复保证
-     * 往返期间实时消息不被抹），反复调用安全。
+     * 由会话页在"本会话运行中"期间每 2 秒调用一次；上一轮未结束时合并一次待补查，避免旧快照并发回写。
      */
     fun refreshViaPolling() {
-        viewModelScope.launch { loadHistory() }
+        viewModelScope.launch { loadHistoryIfIdle() }
+    }
+
+    private suspend fun loadHistoryIfIdle() {
+        if (!historyRequestGate.tryStart()) return
+        var gateReleased = false
+        try {
+            while (true) {
+                loadHistory()
+                if (!historyRequestGate.finishCurrentRequest()) {
+                    gateReleased = true
+                    return
+                }
+            }
+        } finally {
+            if (!gateReleased) historyRequestGate.abort()
+        }
     }
 
     private suspend fun loadHistory() {
+        val keysAtRequestStart = _messages.value.mapTo(HashSet<String>()) { it.key }
+        val initialHistoryLoad = !hasSuccessfulHistorySnapshot
         when (val r = DshRepository.apiClient.sessionHistory(sessionId)) {
             is ApiResult.Ok -> {
                 var input = 0; var output = 0; var cache = 0
@@ -342,14 +372,15 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                         else -> ev.toUiMessage()?.let { msgs.add(it) }
                     }
                 }
-                // P1-1 修复：不整表覆盖 _messages（避免 history 网络往返期间已 upsert 的实时尾部消息被抹掉）。
-                // 用已有列表 + 历史消息按 key 合并（历史去重，保留实时/流式消息），远端顺序稳定。
-                val merged = LinkedHashMap<String, UiMessage>()
-                // 先放现有的（实时已 upsert 的，含流式占位/乐观本地），再 merge 历史，历史不覆盖已存在的 key
-                _messages.value.forEach { merged[it.key] = it }
-                msgs.filterNot { it.key == "__streaming__" }.forEach { merged.putIfAbsent(it.key, it) }
-                _messages.value = merged.values.toList()
+                // 快照按消息键与请求开始状态合并；时间只用于同文发送回显，不跨设备排序。
+                _messages.value = mergeHistoryMessages(
+                    _messages.value,
+                    msgs,
+                    keysAtRequestStart,
+                    initialHistoryLoad,
+                )
                 _tokenStats.value = TokenStats(input, output, cache)
+                hasSuccessfulHistorySnapshot = true
                 _historyLoaded.value = true
             }
             is ApiResult.BizError -> {
@@ -451,23 +482,30 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         return list
     }
 
-    /**
-     * 按 key upsert 一条消息：存在同 key 则原位替换（历史+实时重叠/重复回显去重），否则追加。
-     * 用户消息额外处理"乐观本地消息(local-user-*)"：服务端回显同文本时原位替换，避免两条。
-     */
+    /** 按服务端 key 更新实时项；用户回显只替换正文和时间都匹配的本地发送项。 */
     private fun upsertMessage(msg: UiMessage) {
         val list = _messages.value
-        // 乐观本地用户消息：key 前缀 local-user- 且同文本 → 用服务端消息原位替换
-        if (msg.role == Role.USER) {
-            val localIdx = list.indexOfLast { it.key.startsWith("local-user-") && it.text == msg.text }
-            if (localIdx >= 0) {
-                _messages.value = list.toMutableList().apply { this[localIdx] = msg }
-                return
-            }
-        }
-        // 同 key 已存在 → 原位替换；否则追加
         val idx = list.indexOfFirst { it.key == msg.key }
-        _messages.value = if (idx >= 0) list.toMutableList().apply { this[idx] = msg } else list + msg
+        if (idx >= 0) {
+            _messages.value = list.toMutableList().apply { this[idx] = msg }
+            return
+        }
+        val localIdx = findMatchingLocalPromptIndex(list, msg)
+        _messages.value = if (localIdx >= 0) {
+            list.toMutableList().apply { this[localIdx] = msg }
+        } else {
+            list + msg
+        }
+    }
+
+    private fun updatePromptDeliveryState(localKey: String, state: PromptDeliveryState): Boolean {
+        val list = _messages.value
+        val index = list.indexOfFirst { it.key == localKey }
+        if (index < 0) return false // 历史/实时回显已确认并替换了本地项。
+        _messages.value = list.toMutableList().apply {
+            this[index] = this[index].copy(deliveryState = state)
+        }
+        return true
     }
 
     /**
@@ -528,37 +566,63 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         // 发送前的运行态：true = 当前回合正在跑，按 dsh 新版契约（session/prompt，mode=queue，
         // 与官方 WebUI 发消息一致）这条消息会**排入队列**、等回合结束后自动执行。
         // 记录它以在受理成功后给用户明确反馈（否则用户会误判"没发送"）。
-        val wasRunning = _running.value
+        val wasRunning = DshRepository.sessions.value[sessionId]?.running ?: _running.value
+        if (pendingPromptCount == 0) {
+            pendingPromptBaselineRunning = wasRunning
+            pendingPromptAccepted = false
+        }
+        pendingPromptCount++
         _running.value = true
-        // 乐观插入用户消息（历史/实时不重复），key 用本地时间戳保证唯一
+        val now = System.currentTimeMillis()
+        val localKey = "local-user-${UUID.randomUUID()}"
+        // 乐观插入用户消息；UUID 避免同一毫秒内连续发送时本地 key 冲突。
         _messages.value = _messages.value + UiMessage(
-            key = "local-user-${System.currentTimeMillis()}",
+            key = localKey,
             role = Role.USER,
             text = text,
-            timeMillis = System.currentTimeMillis(),
+            timeMillis = now,
+            deliveryState = PromptDeliveryState.SENDING,
         )
         viewModelScope.launch {
-            when (val r = DshRepository.apiClient.sessionPrompt(sessionId, text)) {
-                is ApiResult.Ok -> {
-                    // 发送受理即标记"本机已发过消息"（本地事实）：列表立即豁免 blank 隐藏——
-                    // 不等宿主 turn/start（数秒延迟）与推送帧（慢链路可能丢），返回列表即刻可见
-                    DshRepository.markSessionPrompted(sessionId)
-                    if (wasRunning) {
-                        // 排队反馈（手机实测报障修复）：消息已受理但会等当前回合结束才执行
-                        _actionError.value = "已加入队列：当前回合运行中，这条消息会在回合结束后自动发送。"
+            var failed = false
+            try {
+                when (val r = DshRepository.apiClient.sessionPrompt(sessionId, text)) {
+                    is ApiResult.Ok -> {
+                        pendingPromptAccepted = true
+                        updatePromptDeliveryState(localKey, acceptedPromptState(wasRunning))
+                        // 发送受理即标记"本机已发过消息"（本地事实）：列表立即豁免 blank 隐藏——
+                        // 不等宿主 turn/start（数秒延迟）与推送帧（慢链路可能丢），返回列表即刻可见
+                        DshRepository.markSessionPrompted(sessionId)
+                        if (wasRunning) {
+                            // 保留既有排队提示：消息会在当前回合结束后执行。
+                            _actionError.value = "已加入队列：当前回合运行中，这条消息会在回合结束后自动发送。"
+                        }
+                    }
+                    is ApiResult.BizError -> {
+                        failed = true
+                        Log.w(TAG, "prompt biz error: ${r.code} / ${r.message}")
+                        if (updatePromptDeliveryState(localKey, failedPromptState(networkError = false))) {
+                            _actionError.value = "发送失败（${r.code}），请确认内容后重试。"
+                        }
+                    }
+                    is ApiResult.NetError -> {
+                        failed = true
+                        Log.w(TAG, "prompt net error: ${r.throwable.message}")
+                        if (updatePromptDeliveryState(localKey, failedPromptState(networkError = true))) {
+                            _actionError.value = "发送结果未确认，请先检查会话记录；确认未发送后再重发。"
+                        }
                     }
                 }
-                // 发送失败必须可见（审计 Top3-①：静默失败=用户以为发出去了，agent 永远不回）：
-                // 打点失败码 + Toast 提示；running 复位。乐观消息保留（内容没丢，可重发）。
-                is ApiResult.BizError -> {
-                    Log.w(TAG, "prompt biz error: ${r.code} / ${r.message}")
-                    _actionError.value = "发送失败（${r.code}），请重试。"
-                    _running.value = false
-                }
-                is ApiResult.NetError -> {
-                    Log.w(TAG, "prompt net error: ${r.throwable.message}")
-                    _actionError.value = "发送失败（网络），请重试。"
-                    _running.value = false
+            } finally {
+                pendingPromptCount--
+                if (pendingPromptCount == 0) {
+                    if (shouldRestoreRunningAfterPromptBatch(failed, pendingPromptCount, pendingPromptAccepted)) {
+                        _running.value = restoreRunningAfterFailedPrompt(
+                            pendingPromptBaselineRunning,
+                            DshRepository.sessions.value[sessionId]?.running,
+                        )
+                    }
+                    pendingPromptAccepted = false
                 }
             }
         }
@@ -597,6 +661,22 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
 
     companion object {
         private const val TAG = "ConversationVM"
+        private const val PROMPT_ECHO_MATCH_WINDOW_MS = 120_000L
+
+        private const val ALIGN_SKIP_LOCAL = 1
+        private const val ALIGN_SKIP_HISTORY = 2
+        private const val ALIGN_MATCH = 3
+
+        private data class HistoryMergeItem(
+            val message: UiMessage,
+            val existingCurrentIndex: Int?,
+        )
+
+        private data class HistoryAnchor(
+            val currentIndex: Int,
+            val historyIndex: Int,
+            val message: UiMessage,
+        )
 
         /** 流式消息的稳定 key（同 turn 聚合；助手消息 settled 时替换）。 */
         internal const val STREAMING_KEY = "__streaming__"   // UI 需识别流式占位（流式期间纯文本渲染防闪烁）
@@ -604,9 +684,350 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         /** 流式节流刷新间隔（毫秒）：把高频 chunk 合并到低频 _messages.value 更新，锁死列表重建频率。 */
         private const val STREAM_FLUSH_MS = 80L
 
+        /** 已受理消息的气泡状态由发送前的宿主运行状态决定。 */
+        internal fun acceptedPromptState(wasRunning: Boolean): PromptDeliveryState =
+            if (wasRunning) PromptDeliveryState.QUEUED else PromptDeliveryState.SENT
+
+        /** 业务拒绝可重试前需人工确认；网络失败的受理结果未知，不能提示为明确未发送。 */
+        internal fun failedPromptState(networkError: Boolean): PromptDeliveryState =
+            if (networkError) PromptDeliveryState.UNCONFIRMED else PromptDeliveryState.REJECTED
+
+        /** 并发请求全部结束且整批未被受理时，才允许失败分支恢复运行状态。 */
+        internal fun shouldRestoreRunningAfterPromptBatch(
+            failed: Boolean,
+            pendingPromptCount: Int,
+            anyPromptAccepted: Boolean,
+        ): Boolean = failed && pendingPromptCount == 0 && !anyPromptAccepted
+
+        /** 失败回执后使用最新宿主值；初始快照缺失时回退发送前状态。 */
+        internal fun restoreRunningAfterFailedPrompt(wasRunning: Boolean, hostRunning: Boolean?): Boolean =
+            hostRunning ?: wasRunning
+
+        /**
+         * 合并一轮历史快照：当前同键项优先，避免慢返回的旧快照覆盖实时更新；
+         * 仅对时间可信的近期用户回显收敛本地乐观消息。
+         */
+        internal fun mergeHistoryMessages(
+            current: List<UiMessage>,
+            incoming: List<UiMessage>,
+            keysAtRequestStart: Set<String> = current.mapTo(HashSet<String>()) { it.key },
+            initialHistoryLoad: Boolean = false,
+        ): List<UiMessage> {
+            val merged = ArrayList<UiMessage>(current.size + incoming.size)
+            current.forEach { message ->
+                val index = merged.indexOfFirst { it.key == message.key }
+                if (index >= 0) merged[index] = message else merged.add(message)
+            }
+
+            val seenHistoryKeys = HashSet<String>()
+            val history = incoming.asSequence()
+                .filterNot { it.key == STREAMING_KEY }
+                .filter { seenHistoryKeys.add(it.key) }
+                .map { message ->
+                    val existingIndex = merged.indexOfFirst { it.key == message.key }
+                    HistoryMergeItem(
+                        message = if (existingIndex >= 0) merged[existingIndex] else message,
+                        existingCurrentIndex = existingIndex.takeIf { it >= 0 },
+                    )
+                }
+                .toList()
+
+            val localPromptsByText = merged.withIndex()
+                .filter { (_, message) ->
+                    message.role == Role.USER &&
+                        message.key.startsWith("local-user-") &&
+                        message.timeMillis > 0L &&
+                        message.deliveryState != PromptDeliveryState.REJECTED
+                }
+                .groupBy { it.value.text }
+            val historyPromptsByText = history.withIndex()
+                .filter { (_, item) ->
+                    item.message.role == Role.USER &&
+                        !item.message.key.startsWith("local-user-") &&
+                        item.message.timeMillis > 0L
+                }
+                .groupBy { it.value.message.text }
+
+            val matchedExistingIndices = HashSet<Int>()
+            val currentIndexByHistoryIndex = HashMap<Int, Int>()
+            historyPromptsByText.forEach { (text, historyPrompts) ->
+                val localPrompts = localPromptsByText[text] ?: return@forEach
+                matchLocalPromptsInOrder(localPrompts, historyPrompts).forEach { (localIndex, historyIndex) ->
+                    val item = history[historyIndex]
+                    currentIndexByHistoryIndex[historyIndex] = localIndex
+                    item.existingCurrentIndex?.let(matchedExistingIndices::add)
+                }
+            }
+
+            // 已经在当前列表中的历史项也是顺序锚点；若它刚好替换了本地项，则使用本地槽位。
+            history.forEachIndexed { index, item ->
+                val existingIndex = item.existingCurrentIndex ?: return@forEachIndexed
+                currentIndexByHistoryIndex.putIfAbsent(index, existingIndex)
+            }
+            val anchors = currentIndexByHistoryIndex.entries
+                .sortedBy { it.key }
+                .map { (historyIndex, currentIndex) ->
+                    HistoryAnchor(currentIndex, historyIndex, history[historyIndex].message)
+                }
+            val consumedCurrentIndices = HashSet<Int>().apply {
+                addAll(currentIndexByHistoryIndex.values)
+                addAll(matchedExistingIndices)
+            }
+
+            val result = ArrayList<UiMessage>(merged.size + history.size)
+            var currentCursor = 0
+            var historyCursor = 0
+            var hasPreviousAnchor = false
+            anchors.forEach { anchor ->
+                val currentEnd = maxOf(currentCursor, anchor.currentIndex)
+                if (!hasPreviousAnchor) {
+                    // 历史请求期间新到的流式尾项要留在缺失历史之后、锚点之前。
+                    appendCurrentGapByRequestAge(
+                        result, merged, currentCursor, currentEnd, consumedCurrentIndices,
+                        keysAtRequestStart, requestStartedBeforeCurrent = true,
+                    )
+                    appendHistoryGap(result, history, historyCursor, anchor.historyIndex, currentIndexByHistoryIndex)
+                    appendCurrentGapByRequestAge(
+                        result, merged, currentCursor, currentEnd, consumedCurrentIndices,
+                        keysAtRequestStart, requestStartedBeforeCurrent = false,
+                    )
+                } else {
+                    // 两个锚点之间先按服务端顺序插入缺失项，再保留当前列表里的未匹配内容。
+                    appendHistoryGap(result, history, historyCursor, anchor.historyIndex, currentIndexByHistoryIndex)
+                    appendCurrentGap(result, merged, currentCursor, currentEnd, consumedCurrentIndices)
+                }
+                result.add(anchor.message)
+                currentCursor = maxOf(currentCursor, anchor.currentIndex + 1)
+                historyCursor = anchor.historyIndex + 1
+                hasPreviousAnchor = true
+            }
+
+            if (hasPreviousAnchor) {
+                appendHistoryGap(result, history, historyCursor, history.size, currentIndexByHistoryIndex)
+                appendCurrentGap(result, merged, currentCursor, merged.size, consumedCurrentIndices)
+            } else {
+                // 初次历史是消息列表基线；之后只把快照插到请求期间新增项之前，避免跨设备时钟排序。
+                val firstNewCurrentIndex = merged.indexOfFirst {
+                    it.key == STREAMING_KEY || it.key !in keysAtRequestStart
+                }
+                when {
+                    initialHistoryLoad -> {
+                        history.forEach { item ->
+                            if (item.existingCurrentIndex == null) result.add(item.message)
+                        }
+                        result.addAll(merged)
+                    }
+                    firstNewCurrentIndex >= 0 -> {
+                        result.addAll(merged.subList(0, firstNewCurrentIndex))
+                        history.forEach { item ->
+                            if (item.existingCurrentIndex == null) result.add(item.message)
+                        }
+                        result.addAll(merged.subList(firstNewCurrentIndex, merged.size))
+                    }
+                    else -> {
+                        result.addAll(merged)
+                        history.forEach { item ->
+                            if (item.existingCurrentIndex == null) result.add(item.message)
+                        }
+                    }
+                }
+            }
+            return result
+        }
+
+        private fun appendCurrentGap(
+            result: MutableList<UiMessage>,
+            current: List<UiMessage>,
+            fromIndex: Int,
+            toIndex: Int,
+            consumedIndices: Set<Int>,
+        ) {
+            for (index in fromIndex until toIndex) {
+                if (index !in consumedIndices) result.add(current[index])
+            }
+        }
+
+        private fun appendCurrentGapByRequestAge(
+            result: MutableList<UiMessage>,
+            current: List<UiMessage>,
+            fromIndex: Int,
+            toIndex: Int,
+            consumedIndices: Set<Int>,
+            keysAtRequestStart: Set<String>,
+            requestStartedBeforeCurrent: Boolean,
+        ) {
+            for (index in fromIndex until toIndex) {
+                val message = current[index]
+                // 流式占位固定复用同一键；它在请求期间可能被清除后重建，不能按键集判断年龄。
+                val existedAtRequestStart = message.key != STREAMING_KEY && message.key in keysAtRequestStart
+                if (index !in consumedIndices && existedAtRequestStart == requestStartedBeforeCurrent) {
+                    result.add(message)
+                }
+            }
+        }
+
+        private fun appendHistoryGap(
+            result: MutableList<UiMessage>,
+            history: List<HistoryMergeItem>,
+            fromIndex: Int,
+            toIndex: Int,
+            anchorIndices: Map<Int, Int>,
+        ) {
+            for (index in fromIndex until toIndex) {
+                val item = history[index]
+                if (index !in anchorIndices && item.existingCurrentIndex == null) {
+                    result.add(item.message)
+                }
+            }
+        }
+
+        /** 同文消息按双方原顺序对齐：先最大化配对数，再最小化总时间差。 */
+        private fun matchLocalPromptsInOrder(
+            localPrompts: List<IndexedValue<UiMessage>>,
+            historyPrompts: List<IndexedValue<HistoryMergeItem>>,
+        ): List<Pair<Int, Int>> {
+            val localCount = localPrompts.size
+            val historyCount = historyPrompts.size
+            var previousPairCounts = IntArray(historyCount + 1)
+            var previousTimeDifferences = LongArray(historyCount + 1)
+            val choices = Array(localCount + 1) { ByteArray(historyCount + 1) }
+
+            for (j in 1..historyCount) choices[0][j] = ALIGN_SKIP_HISTORY.toByte()
+
+            for (i in 1..localCount) {
+                val currentPairCounts = IntArray(historyCount + 1)
+                val currentTimeDifferences = LongArray(historyCount + 1)
+                choices[i][0] = ALIGN_SKIP_LOCAL.toByte()
+                for (j in 1..historyCount) {
+                    // 平分时保留较早的本地消息；只有严格更优的转移才覆盖当前选择。
+                    var bestCount = previousPairCounts[j]
+                    var bestDifference = previousTimeDifferences[j]
+                    var bestChoice = ALIGN_SKIP_LOCAL
+
+                    val skipHistoryCount = currentPairCounts[j - 1]
+                    val skipHistoryDifference = currentTimeDifferences[j - 1]
+                    if (isBetterAlignment(skipHistoryCount, skipHistoryDifference, bestCount, bestDifference)) {
+                        bestCount = skipHistoryCount
+                        bestDifference = skipHistoryDifference
+                        bestChoice = ALIGN_SKIP_HISTORY
+                    }
+
+                    val localTime = localPrompts[i - 1].value.timeMillis
+                    val serverTime = historyPrompts[j - 1].value.message.timeMillis
+                    if (serverTime >= localTime) {
+                        val timeDifference = serverTime - localTime
+                        if (timeDifference <= PROMPT_ECHO_MATCH_WINDOW_MS) {
+                            val matchCount = previousPairCounts[j - 1] + 1
+                            val matchDifference = previousTimeDifferences[j - 1] + timeDifference
+                            if (isBetterAlignment(matchCount, matchDifference, bestCount, bestDifference)) {
+                                bestCount = matchCount
+                                bestDifference = matchDifference
+                                bestChoice = ALIGN_MATCH
+                            }
+                        }
+                    }
+
+                    currentPairCounts[j] = bestCount
+                    currentTimeDifferences[j] = bestDifference
+                    choices[i][j] = bestChoice.toByte()
+                }
+                previousPairCounts = currentPairCounts
+                previousTimeDifferences = currentTimeDifferences
+            }
+
+            val matches = ArrayList<Pair<Int, Int>>(previousPairCounts[historyCount])
+            var i = localCount
+            var j = historyCount
+            while (i > 0 || j > 0) {
+                when {
+                    i == 0 -> j--
+                    j == 0 -> i--
+                    else -> when (choices[i][j].toInt()) {
+                        ALIGN_SKIP_LOCAL -> i--
+                        ALIGN_SKIP_HISTORY -> j--
+                        ALIGN_MATCH -> {
+                            matches.add(localPrompts[i - 1].index to historyPrompts[j - 1].index)
+                            i--
+                            j--
+                        }
+                        else -> error("消息对齐状态缺失：i=$i, j=$j")
+                    }
+                }
+            }
+            return matches.asReversed()
+        }
+
+        private fun isBetterAlignment(
+            candidateCount: Int,
+            candidateDifference: Long,
+            currentCount: Int,
+            currentDifference: Long,
+        ): Boolean = candidateCount > currentCount ||
+            (candidateCount == currentCount && candidateDifference < currentDifference)
+
+        private fun findMatchingLocalPromptIndex(current: List<UiMessage>, incoming: UiMessage): Int {
+            if (incoming.role != Role.USER || incoming.key.startsWith("local-user-") || incoming.timeMillis <= 0L) {
+                return -1
+            }
+            var bestIndex = -1
+            var bestDistance = Long.MAX_VALUE
+            current.forEachIndexed { index, candidate ->
+                if (candidate.role != Role.USER ||
+                    !candidate.key.startsWith("local-user-") ||
+                    candidate.text != incoming.text ||
+                    candidate.timeMillis <= 0L ||
+                    candidate.deliveryState == PromptDeliveryState.REJECTED
+                ) return@forEachIndexed
+
+                val difference = incoming.timeMillis - candidate.timeMillis
+                if (difference < 0L || difference > PROMPT_ECHO_MATCH_WINDOW_MS) {
+                    return@forEachIndexed
+                }
+                val distance = abs(difference)
+                if (distance < bestDistance) {
+                    bestIndex = index
+                    bestDistance = distance
+                }
+            }
+            return bestIndex
+        }
+
         /** 会话参数工厂（Activity 以 intent 的 sessionId 构造）。 */
         fun factory(sessionId: String) = viewModelFactory {
             initializer { ConversationViewModel(sessionId) }
         }
+    }
+}
+
+/** 同一会话的首次加载与周期轮询共用此门闩，避免历史快照并发回写。 */
+internal class HistoryRequestGate {
+    private var inFlight = false
+    private var pendingRefresh = false
+
+    @Synchronized
+    fun tryStart(): Boolean {
+        if (inFlight) {
+            pendingRefresh = true
+            return false
+        }
+        inFlight = true
+        return true
+    }
+
+    /** 返回 true 表示忙时有刷新到达，门闩继续占用并串行执行一次补查。 */
+    @Synchronized
+    fun finishCurrentRequest(): Boolean {
+        if (pendingRefresh) {
+            pendingRefresh = false
+            return true
+        }
+        inFlight = false
+        return false
+    }
+
+    @Synchronized
+    fun abort() {
+        pendingRefresh = false
+        inFlight = false
     }
 }

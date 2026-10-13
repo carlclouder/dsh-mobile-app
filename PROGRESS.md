@@ -12,8 +12,16 @@
 | 设计文档 | `docs/DESIGN.md`（v1.1.1 评审修正 + §5.5 原生对话页修订 + §2.9 新增需求） |
 | 产物根 | `<repo>\` |
 | 最后更新 | 2026-08-26（三 bug 修复轮已提交 commit d781ff5：①上下文注入精简为单行来源显示 ②进会话滚真底 ③插话对齐 WebUI 五点 + sessionQueue StateFlow 快照镜像 + 双代理评审通过 + 功能对齐审计交付 docs/AUDIT-webui-alignment.md；共 12 文件 +784/−67） |
-| 当前版本 | `app/version.properties` → versionCode=104 / versionName=0.1.103（**每次 assemble 自动 +1**；**用户只装 release，需配套生成 release 版**） |
-| 单测 | 71/71 绿（+9：注入分类 8 例含空引用降级回归 + steer payload 形状 1 例；`testDebugUnitTest` 实测 fresh_tests=71 failures=0） |
+| 当前版本 | `app/version.properties` → versionCode=186 / versionName=0.1.185（**每次 assemble 自动 +1**；本任务已同时生成 Debug 与 Release） |
+| 单测 | 114/114 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+
+## 当前处理（2026-10-13）
+
+- **目标**：在不重构的前提下修复会话发送重复显示、失败后运行状态误报和现行架构说明过期；用户明确要求当前生产版本保持稳定。
+- **基线**：工作区 `main`，HEAD `4e794e8`，应用版本 `0.1.183`；开始前工作区干净。
+- **已完成**：已建立完整方案 `docs/requirements/2026-10-13-移动端缺陷优化方案.md`；发送状态提示、运行状态恢复、消息顺序合并和现行通道说明均已修改。复核覆盖同文交叉配对、历史锚点插入、首次快照排序、固定流式键复用与轮询补查；改动经独立只读复核。
+- **最终验证**：全量 JVM 单测 114/114 通过；Debug、Release 均构建成功，APK 均为 `0.1.185` / versionCode `186`，Release 签名与现有生产 APK 一致。模拟器已有包是 Debug 签名，Release 覆盖安装被系统拒绝且原数据未动；随后用同签名 Debug 包更新模拟器并保留数据，主列表和对话页可正常启动，未观察到崩溃。未发送消息，因此四种实时发送状态文案未在真实发送流程中触发验收。
+- **范围保护**：未改 RPC、认证、轮询周期、持久化数据结构、签名配置或宿主；未发布或安装真机。最终 APK 位于 `app/build/outputs/apk/{debug,release}/`。用户于 2026-10-13 明确授权提交推送，本轮 7 个相关文件提交到 `main` 并按现有配置推送 Gitee、GitHub；构建临时文件与 APK 不纳入提交。
 
 ---
 

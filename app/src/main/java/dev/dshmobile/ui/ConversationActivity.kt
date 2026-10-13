@@ -362,6 +362,22 @@ private fun MessageBubble(msg: UiMessage) {
                 Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
                     Column(Modifier.widthIn(max = 300.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
                         CollapsibleMarkdownBody(msg.text, fontSizeSp = 15f)
+                        msg.deliveryState?.let { state ->
+                            val label = when (state) {
+                                ConversationViewModel.PromptDeliveryState.SENDING -> "正在发送"
+                                ConversationViewModel.PromptDeliveryState.SENT -> "已发送"
+                                ConversationViewModel.PromptDeliveryState.QUEUED -> "已加入队列"
+                                ConversationViewModel.PromptDeliveryState.REJECTED -> "发送失败"
+                                ConversationViewModel.PromptDeliveryState.UNCONFIRMED -> "发送结果待确认"
+                            }
+                            val color = when (state) {
+                                ConversationViewModel.PromptDeliveryState.QUEUED -> MaterialTheme.colorScheme.primary
+                                ConversationViewModel.PromptDeliveryState.REJECTED -> MaterialTheme.colorScheme.error
+                                ConversationViewModel.PromptDeliveryState.UNCONFIRMED -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            Text(label, fontSize = 11.sp, color = color, modifier = Modifier.padding(top = 2.dp))
+                        }
                         TimestampLine(msg.timeMillis)
                     }
                 }
