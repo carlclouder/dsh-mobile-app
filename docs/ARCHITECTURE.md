@@ -35,7 +35,7 @@ DeepSeek Harness（`dsh web`，监听 127.0.0.1:3080）。
 | 语言 | Kotlin（JVM 17） |
 | UI | Jetpack Compose + Material3 |
 | 架构 | 分层 + MVVM + 单向数据流 |
-| 网络 | OkHttp（HTTP 单次调用 + 周期轮询；WebSocket 代码保留但新版宿主已无事件流端点） |
+| 网络 | OkHttp（HTTP RPC 与周期对账；`remote.mux` 仅承载新版工作区订阅流） |
 | 序列化 | kotlinx-serialization-json |
 | 并发 | kotlinx-coroutines（Flow/StateFlow/SharedFlow） |
 | 持久化 | DataStore<Preferences>（设置）+ SharedPreferences（会话 Cookie，30 天复用） |
@@ -83,7 +83,7 @@ UI 只通过 `DshRepository` 的只读流消费状态，实现服务与界面生
 | `ui` | Compose 界面 + ViewModel + UI 状态与策略 |
 | `service` | 前台监听服务、通知状态机、事件去重 |
 | `notify` | 系统通知构建与广播接收器（通知内按钮应答） |
-| `network` | DshApiClient：HTTP RPC + 双 WebSocket 工厂 |
+| `network` | DshApiClient：HTTP RPC、历史/列表查询与工作区订阅流 |
 | `data` | SettingsStore：服务器地址 + 通知开关持久化 |
 | `model` | 协议模型、帧解析、信封结构（对照宿主 schema） |
 | 根包 | DshApplication（初始化）、DshRepository（状态源）、MainActivity |
@@ -101,30 +101,29 @@ UI 只通过 `DshRepository` 的只读流消费状态，实现服务与界面生
 
 ### 4.2 DshApiClient（通信层）
 
-宿主通信的**唯一入口**，两类通道：
+宿主通信的**唯一入口**，当前运行路径使用两类通道：
 
-- **单次调用**：`POST /api/<method>`，JSON-RPC 风格信封
+- **HTTP 请求**：`POST /api/<method>`，JSON-RPC 风格信封
   `{type:"client-request", rpcId, method, payload}`，响应折叠为三分支
-  `Ok / BizError / NetError`；
-- **事件流**：两条只下行 WebSocket —— `events.mux`（会话事件：对话块/审批/提问/队列）
-  与 `events.host`（宿主状态：会话增删、running 翻转）。
+  `Ok / BizError / NetError`；`session.list` 和 `session.history` 由调用方按周期查询。
+- **工作区订阅**：新版宿主通过 `/api/remote.mux` 提供 `workspace/follow` 流，当前只用它接收工作区与归档集合更新。旧版会话事件 WebSocket 工厂仍在源码中，但新版运行路径不启动它们。
 
 关键健壮性设计：
-- 换址用「世代计数」：更新地址即自增世代并**关闭全部存量 WS**，防止旧流与新调用分裂到两台服务器；
-- 独立 WS 客户端（`pingInterval 30s` + `readTimeout 90s` 防 NAT 半开）；
+- 换址用「世代计数」：更新地址即自增世代并**关闭存量工作区流**，防止旧流与新调用分裂到两台服务器；
+- 工作区订阅流支持心跳、断线退避重连和网络恢复后立即重连；
 - 应答走短超时专用客户端（预算 <10s 广播 ANR 窗口）；
 - 模拟器调试 Host 改写拦截器仅存在于 debug 构建（`BuildConfig.DEBUG`）。
 
 ### 4.3 EventStreamService（前台服务）
 
-应用的心脏，保证退后台/息屏仍持续收事件：
+后台同步服务，保证退后台/息屏仍周期对账会话状态，并维持工作区订阅：
 
 - `specialUse` 前台服务类型（规避 Android 15 dataSync 的 6h 累积限制），
   配套 `onTimeout` 优雅降级兜底；
-- 每条流一个协程：开 socket → 挂起等关闭 → **退避重连（1s→60s）**；
-- 冷启动/重连用 `session.list` **baseline 对账**；
+- 每 3 秒调用一次 `session.list` 并运行 **baseline 对账**，失败后按退避间隔重试；
+- 新版宿主通过一个独立工作区流更新工作区与归档集合，该流断开后退避重连；
 - `ConnectivityManager` 监听网络切换立即重连；
-- `SessionEventDeduper` 按 seq 水位去重，防止重连 replay 造成「流式叠词」。
+- 旧版会话事件 WebSocket 不在当前启动路径中，当前对话内容由会话页调用历史接口读取。
 
 ### 4.4 NotificationStateMachine（纯状态机）
 
@@ -137,36 +136,36 @@ M3 核心，**纯 Kotlin、无 Android 依赖、时钟可注入**，可 JVM 全�
 
 ### 4.5 ConversationViewModel（对话页）
 
-对话页数据**三来源合并**：
+对话页当前消息与状态来自以下路径：
 
 1. 打开时 `sessionHistory()` 拉历史（user/assistant/tool）；
-2. mux 流 `session/event` 帧实时追加；
-3. repository 会话快照驱动 `running` 状态。
+2. 会话运行期间每 2 秒调用一次历史接口，对账新消息；
+3. repository 的 `session.list` 快照驱动 `running` 状态。
 
-流式渲染做了**节流合批**：高频 `assistant/chunk` 增量先追加到内存 `StringBuilder`，
-再由协程每 80ms 合并刷新一次消息列表，把「每 chunk 刷全列表」锁死为常数频率，
-消除 P0 卡死。
+流式聚合与节流代码仍保留，供实时事件入口复用；新版宿主关闭会话事件流时，对话页主要靠两秒一次的历史对账更新。
 
 ## 5. 核心数据流
 
 ### 5.1 会话列表与通知
 
 ```
-events.host / session.list ──> EventStreamService ──> NotificationStateMachine
+session.list（每 3 秒） ──> EventStreamService ──> NotificationStateMachine
         │                                                │ 产出通知指令
         │ 写快照                                          ▼
         └────────────> DshRepository.sessions      NotificationHelper(系统通知)
                           │ 只读
                           ▼
                     SessionListScreen（三态分组）
+
+remote.mux workspace/follow ──> EventStreamService ──> DshRepository.workspaces
 ```
 
 ### 5.2 对话页实时渲染
 
 ```
-sessionHistory() ──> ConversationViewModel._messages（历史，按 key 合并去重）
-events.mux session/event 帧 ──> DshRepository.sessionEvents ──> ViewModel 实时 upsert
-        （chunk 增量 → 节流合批 → __streaming__ 占位 → settled 消息替换）
+进入会话时 sessionHistory() ──> ConversationViewModel._messages
+会话运行期间每 2 秒 sessionHistory() ──> 按服务端 key 与近期本地发送项合并
+（保留已到达的当前项；历史回显确认本地发送后原位替换，流式占位不从历史重放）
 ```
 
 ### 5.3 用户操作
@@ -174,7 +173,7 @@ events.mux session/event 帧 ──> DshRepository.sessionEvents ──> ViewMod
 ```
 发消息/停止/插话/审批 ──> ViewModel ──> DshApiClient ──> POST /api/<method>
                                                      └──> POST /api/respond（审批/提问）
-宿主状态变化 ──> 双 WS 推送 ──> 状态机 + 状态源 ──> UI 收敛（以宿主回显为准，避免乐观闪烁）
+宿主状态变化 ──> session.list 周期对账 ──> 状态机 + 状态源 ──> UI 收敛（以宿主快照为准）
 ```
 
 关键原则：**UI 以宿主回显为最终事实源**，本地只做轻量乐观更新（用户消息、插话禁用标记），
@@ -187,8 +186,7 @@ events.mux session/event 帧 ──> DshRepository.sessionEvents ──> ViewMod
 2. **状态机纯化**：通知判定逻辑与 Android 分离，时钟可注入 → 全分支确定性单测。
 3. **无本地数据库**：会话快照为易失内存态，重启后由 `session.list` baseline 重建；
    仅 DataStore 存服务器地址 + 三个通知开关，大幅降低复杂度与一致性风险。
-4. **双通道分工**：单次调用走 HTTP RPC，持续推送走两条 WS，避免轮询；
-   换址用世代计数统一收拢两条流，杜绝「事件与调用分裂」。
+4. **同步方式**：会话状态与历史内容通过 HTTP 周期对账更新；工作区通过 `remote.mux` 的 `workspace/follow` 流更新。换址时关闭工作区流，避免旧流与新请求分裂到两台服务器。
 5. **容错优先**：退避重连、seq 去重、id 键控去重、三态回执收敛、错误码可见化，
    全程无「静默失败」路径。
 6. **私密配置外置**：服务器地址/受信权威经 `BuildConfig` 注入（`personal.properties`，
@@ -198,7 +196,7 @@ events.mux session/event 帧 ──> DshRepository.sessionEvents ──> ViewMod
 
 | 维度 | 措施 |
 |------|------|
-| 可靠性 | 退避重连、baseline 对账、去重、网络切换即时重连 |
+| 可靠性 | 周期 baseline 对账、工作区流退避重连、网络切换即时恢复 |
 | 性能 | 流式节流合批、大列表解码走 IO 线程、独立 WS 调度器 |
 | 安全性 | TLS 系统信任链零配置、私密域名外置、release R8 混淆 |
 | 可测试性 | 纯状态机可 JVM 单测、MockWebServer 网络单测、纯函数抽离 |
