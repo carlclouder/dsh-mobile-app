@@ -15,6 +15,50 @@
 | 当前版本 | `app/version.properties` → versionCode=186 / versionName=0.1.185（**每次 assemble 自动 +1**；本任务已同时生成 Debug 与 Release） |
 | 单测 | 114/114 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
 
+## 2026-10-18 Tailscale 远程链接中断修复（已完成并实测）
+
+**用户报障**：「帮我修复 dsh 的 tailscale 链接」。实测手机入口 `https://carl-pc.taild10021.ts.net/` 返回 **502 Bad Gateway**。
+
+**三个叠加故障（逐层拆解，均在服务器侧）**：
+
+| # | 故障 | 证据 | 修复 |
+|---|---|---|---|
+| ① | **Serve 指向 3081，而当时 3081 无人监听** | `tailscale serve status` → `\|-- / proxy http://127.0.0.1:3081`，但插件尚未装、3081 无监听 → Serve 回 502 | 先 `tailscale serve --bg --https=443 http://127.0.0.1:3080` 把流量导到 dsh 本体；**补齐插件后 3081 即有监听，Serve 最终由启动脚本校正回 3081，链路照样 200**（详见下方「Serve 指向的真相」） |
+| ② | **`~/.dsh` 被重建，免令牌网关插件丢失** | `profiles/web/package.json` 的 bundles 只剩 base/web-app/marketplace/dshmarket；`local-plugins` 为空；`node_modules` 无 `dsh-auth-gateway` → 裸域名被原生认证拦成 401（首页）/403（API） | 用 `tools/install-auth-gateway.ps1` 重装 v1.1.1（幂等脚本），bundles 已含 `dsh-auth-gateway`，**复查无 `dsh-file-upload` 冲突** |
+| ③ | **dsh 启动时没带 `--trusted-host`** | 运行中进程命令行仅 `... dsh web`（父进程 Git bash `sh.exe`）→ Host 头 `<机器名>.<tailnet>.ts.net` 不属受信权威，`/api` 恒 403 | **写进 profile 配置**：`profiles/web/cordis.patch.yml` 增加 `- id: connection` 行，`config.trustedHosts: [carl-pc.taild10021.ts.net]`（与启动方式解耦） |
+
+**Serve 指向的真相（本轮更正，别再写错）**：一开始把"必须是 3080"当成唯一正解，实际**两种指向都能用**，判据是"目标端口有没有程序监听"——
+`3080` = dsh 本体（插件在认证链放行）；`3081` = 插件网关反代（注入会话 Cookie）。**本机启动脚本的契约是 3081**：桌面
+`启动DSH-WebUI.bat`（`D:\Documents\Desktop\`，用户在 2026-10-18 恢复）里有强制逻辑 `findstr 3081 / if not → serve --bg --https=443 http://127.0.0.1:3081`，
+所以手工改成 3080 后，脚本一跑就被改回 3081（本轮实测：改完不到一小时被改回）。**手工调 Serve 前必须先看脚本里的契约值**，
+否则白折腾。该 bat 的 dsh 启动命令已带 `--trusted-host carl-pc.taild10021.ts.net`；启动文件夹另有 `DSH-WebUI-AutoStart.lnk`（20:09 恢复）指向它。
+
+**为什么用配置而不是启动参数（关键决策）**：`trustedHosts` 是 `connection` 行的配置项（bundle 里取自 `ctx.webRuntime.trustedHosts`，后者来自 `--trusted-host`）。本项目历史上靠 bat 加参数，换启动方式就失效；写进 profile 的 patch 层与启动方式解耦，符合用户「不要动已有 bat」的既有要求。注意 patch 行是 **config 整对象替换**语义，`connection` 行原本只有 `trustedHosts` 一个键，故只需重述该键。
+
+**本轮新增可复用工具**：`tools/check-tailscale-link.ps1` —— 一条命令回答"能不能用 / 哪里坏 / 下一步做什么"，
+逐项检查 Serve 发布与目标端口（自动识别 3080/3081 形态）、3080 监听、插件登记、`dsh-file-upload` 冲突、受信域名、
+域名首页与 API、本机裸 Host 对照；退出码 0 = 可用。**实测 9 项全通过、退出码 0**。UTF-8 BOM 保存（WinPS 5.1 中文不乱码）。
+
+**验证（全部实测，最终状态：Serve → 3081 网关形态）**：
+
+| 验证项 | 结果 |
+|---|---|
+| 真实域名首页（与手机同一路径） | **200**（35 KB HTML） |
+| 真实域名 `/api/session/list`（正确 `client-request` 信封 + `payload`） | **200**，认证层已放行（此前 403） |
+| 网关端口 `3081` 直连 API | **200**（插件反代在工作） |
+| 本机裸 Host `127.0.0.1:3080` 对照 | **401** —— 放行范围**未**扩大到本机，安全边界不变 |
+| 拼错域名 `carl-cp.…ts.net` 对照 | **403** —— 精确匹配生效 |
+| **冷启动预演**（主 home + 备用端口 3099 实起实例） | 日志 `[auth-gateway] 已开启 tailnet 免令牌放行（受信 Host: carl-pc.taild10021.ts.net）`；该实例 Serve 风格请求首页/API 均 **200**、裸 Host **401** ⇒ **证明下次重启后同样生效** |
+| `tools\check-tailscale-link.ps1` | 9 项全通过，退出码 **0** |
+
+**副作用与清理**：插件装完即被运行中的 dsh **热加载**（3081 被主进程占用；启动备用实例时日志出现 `listen EADDRINUSE` 属备用形态端口的正常降级，不影响放行）；预演实例（3099）已关闭并释放端口。备份：`cordis.patch.yml.bak-20261018`、`package.json.bak-20261018`。
+
+**仍未解决 / 待用户侧确认**：
+- **手机 Tailscale 离线**（`tailscale status`：`v2309a android offline, last seen 20h ago`）——服务器侧全通，需手机开 Tailscale 后实测 App。
+- 手机 App 调 `session/list` 的 `payload` 形状属 App 内既有协议层（实测 `{"args":{}}` 回 `gateway/arguments-invalid`），与本次链路无关，未改动。
+
+---
+
 ## 当前处理（2026-10-13）
 
 - **目标**：在不重构的前提下修复会话发送重复显示、失败后运行状态误报和现行架构说明过期；用户明确要求当前生产版本保持稳定。
