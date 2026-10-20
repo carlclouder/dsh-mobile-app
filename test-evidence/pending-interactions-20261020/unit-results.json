@@ -1,0 +1,56 @@
+{
+  "tests": 150,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "name": "dev.dshmobile.ConversationEventTest",
+      "tests": 19
+    },
+    {
+      "name": "dev.dshmobile.ConversationMessageMergeTest",
+      "tests": 13
+    },
+    {
+      "name": "dev.dshmobile.DshApiClientTest",
+      "tests": 21
+    },
+    {
+      "name": "dev.dshmobile.DshEventStreamTest",
+      "tests": 3
+    },
+    {
+      "name": "dev.dshmobile.DshInteractionStreamTest",
+      "tests": 4
+    },
+    {
+      "name": "dev.dshmobile.InteractionApiClientTest",
+      "tests": 20
+    },
+    {
+      "name": "dev.dshmobile.InteractionStateMachineTest",
+      "tests": 12
+    },
+    {
+      "name": "dev.dshmobile.ModelParsingTest",
+      "tests": 17
+    },
+    {
+      "name": "dev.dshmobile.RespondReceiptPolicyTest",
+      "tests": 5
+    },
+    {
+      "name": "dev.dshmobile.SessionEventDeduperTest",
+      "tests": 5
+    },
+    {
+      "name": "dev.dshmobile.ThinkingStreamLineTest",
+      "tests": 11
+    },
+    {
+      "name": "dev.dshmobile.TurnNotificationStateMachineTest",
+      "tests": 20
+    }
+  ]
+}

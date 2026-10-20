@@ -745,13 +745,16 @@ private fun ApprovalCards(viewModel: ConversationViewModel) {
     }
 }
 
-/** 内联审批卡：工具名 + 原因 + 允许一次/拒绝（免开通知即可应答）。 */
+/** 内联审批卡保留完整操作依据，提交回执与宿主最终确认分别显示。 */
 @Composable
 private fun ApprovalCard(viewModel: ConversationViewModel, info: NotificationStateMachine.ApprovalInfo) {
+    val submissions by viewModel.interactionSubmissions.collectAsState()
+    val submission = submissions[viewModel.approvalActionKey(info)]?.state
+    val canSubmit = info.available && submission == null
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
         shape = MaterialTheme.shapes.medium,
-        modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
     ) {
         Column(Modifier.padding(10.dp)) {
             Text("🔐 工具审批", fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -759,17 +762,18 @@ private fun ApprovalCard(viewModel: ConversationViewModel, info: NotificationSta
             Text("工具：${info.toolName}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             info.reason?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(2.dp))
-                Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                CollapsibleMarkdownBody(it, fontSizeSp = 12f)
             }
+            InteractionStatusText(info.available, submission)
             Spacer(Modifier.height(6.dp))
-            Row(modifier = androidx.compose.ui.Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { viewModel.respondApproval(info.rpcId, info.approvalId, true) },
+                    onClick = { viewModel.respondApproval(info, true) },
+                    enabled = canSubmit,
                     modifier = Modifier.weight(1f),
-                ) { Text("允许一次") }
+                ) { Text(if (submission == ConversationViewModel.InteractionSubmitState.SENDING) "正在提交…" else "允许一次") }
                 Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { viewModel.respondApproval(info.rpcId, info.approvalId, false) }) { Text("拒绝") }
+                TextButton(onClick = { viewModel.respondApproval(info, false) }, enabled = canSubmit) { Text("拒绝") }
             }
         }
     }
@@ -780,69 +784,98 @@ private fun ApprovalCard(viewModel: ConversationViewModel, info: NotificationSta
 private fun QuestionCards(viewModel: ConversationViewModel) {
     val questions by viewModel.questions.collectAsState()
     if (questions.isEmpty()) return
-    Column(modifier = androidx.compose.ui.Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         questions.forEach { info -> QuestionCard(viewModel, info) }
     }
 }
 
-/** 内联提问卡：问题 + 选项（单选/多选）+ 提交回答（respondQuestion）。 */
+/** 草稿由 ViewModel 按稳定调用键持有，卡片因重放或超时重建时仍使用同一份答案。 */
 @Composable
 private fun QuestionCard(viewModel: ConversationViewModel, info: NotificationStateMachine.QuestionInfo) {
-    var selections by remember(info.rpcId) { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
-    // 补充说明按题分存（修复：原先多问题共用一个 custom，同一段文字会重复提交给每道题——审计 Top3-② 后半项）
-    var customs by remember(info.rpcId) { mutableStateOf<Map<String, String>>(emptyMap()) }
+    val drafts by viewModel.questionDrafts.collectAsState()
+    val submissions by viewModel.interactionSubmissions.collectAsState()
+    val draft = drafts[info.key] ?: ConversationViewModel.QuestionDraft()
+    val submission = submissions[viewModel.questionActionKey(info)]?.state
+    val canEdit = info.available && !info.answerQueued && submission == null
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.medium,
-        modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
     ) {
         Column(Modifier.padding(10.dp)) {
             Text("❓ Agent 提问", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            info.questions.forEach { q ->
+            InteractionStatusText(info.available, submission, info.answerQueued)
+            info.questions.forEach { question ->
                 Spacer(Modifier.height(6.dp))
-                Text(q.question, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                // 选项（单选/多选：多选可多勾，单选点选替换）
-                q.options.forEach { opt ->
-                    val selected = selections[q.id]?.contains(opt.label) == true
+                Text(question.question, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                question.detail?.takeIf { it.isNotBlank() }?.let { detail ->
+                    Spacer(Modifier.height(4.dp))
+                    MarkdownText(detail, fontSizeSp = 13f)
+                }
+                question.options.forEach { option ->
                     FilterChip(
-                        selected = selected,
-                        onClick = {
-                            selections = if (q.multiSelect == true) {
-                                val cur = selections[q.id] ?: emptySet()
-                                selections + (q.id to (if (selected) cur - opt.label else cur + opt.label))
-                            } else {
-                                selections + (q.id to setOf(opt.label))
+                        selected = draft.selections[question.id]?.contains(option.label) == true,
+                        enabled = canEdit,
+                        onClick = { viewModel.toggleQuestionOption(info, question.id, option.label) },
+                        label = {
+                            Column(Modifier.padding(vertical = 4.dp)) {
+                                Text(option.label, fontSize = 13.sp)
+                                option.description?.takeIf { it.isNotBlank() }?.let { description ->
+                                    Text(description, fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         },
-                        label = { Text(opt.label, fontSize = 13.sp) },
-                        modifier = Modifier.padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     )
                 }
-                // 可自定义补充（有选项也可补一句；按题独立存储互不串写）
                 OutlinedTextField(
-                    value = customs[q.id] ?: "",
-                    onValueChange = { customs = customs + (q.id to it) },
+                    value = draft.customs[question.id] ?: "",
+                    onValueChange = { viewModel.updateQuestionCustom(info, question.id, it) },
+                    enabled = canEdit,
                     placeholder = { Text("补充说明…") },
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(top = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     maxLines = 2,
                 )
             }
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = {
-                    val answers = info.questions.map { q ->
-                        dev.dshmobile.model.QuestionAnswerItem(
-                            id = q.id,
-                            selected = selections[q.id]?.toList() ?: emptyList(),
-                            custom = customs[q.id]?.takeIf { it.isNotBlank() },
-                        )
-                    }
-                    viewModel.respondQuestion(info.rpcId, answers)
-                },
-                modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-            ) { Text("提交回答") }
+                onClick = { viewModel.respondQuestion(info) },
+                enabled = canEdit,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(when {
+                    info.answerQueued || submission == ConversationViewModel.InteractionSubmitState.QUEUED -> "回答待处理"
+                    submission == ConversationViewModel.InteractionSubmitState.SENDING -> "正在提交…"
+                    submission == ConversationViewModel.InteractionSubmitState.SUBMITTED -> "已提交，等待确认"
+                    submission == ConversationViewModel.InteractionSubmitState.SYNCING -> "正在同步状态"
+                    else -> "提交回答"
+                })
+            }
+            if (submission == ConversationViewModel.InteractionSubmitState.SYNCING) {
+                TextButton(onClick = { viewModel.refreshQuestionState(info) }) { Text("重新同步状态") }
+            }
         }
     }
+}
+
+/** 正常消息继续保留队列语义，明确等待原因，避免用户把发送消息误当作回答。 */
+@Composable
+private fun InteractionStatusText(
+    available: Boolean,
+    submission: ConversationViewModel.InteractionSubmitState?,
+    answerQueued: Boolean = false,
+) {
+    val text = when {
+        answerQueued || submission == ConversationViewModel.InteractionSubmitState.QUEUED -> "回答已排队，等待宿主处理，请勿重复提交。"
+        !available -> "连接已中断，正在恢复交互；草稿已保留。"
+        submission == ConversationViewModel.InteractionSubmitState.SENDING -> "正在提交，请稍候。"
+        submission == ConversationViewModel.InteractionSubmitState.SUBMITTED -> "已提交，等待宿主确认。"
+        submission == ConversationViewModel.InteractionSubmitState.SYNCING -> "回答状态暂未确认，正在同步宿主状态；草稿已保留"
+        else -> "请先完成本次交互，后续普通消息会排队等待。"
+    }
+    Text(text, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp))
 }
 
 /** 消息时间戳（小字灰）。 */

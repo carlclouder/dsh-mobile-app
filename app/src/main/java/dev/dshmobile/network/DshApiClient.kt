@@ -4,6 +4,7 @@ import dev.dshmobile.BuildConfig
 import dev.dshmobile.model.ApiResult
 import dev.dshmobile.model.ConversationEvent
 import dev.dshmobile.model.DshJson
+import dev.dshmobile.model.InteractionTarget
 import dev.dshmobile.model.QuestionAnswerItem
 import dev.dshmobile.model.RespondReceipt
 import dev.dshmobile.model.SessionListValue
@@ -12,9 +13,11 @@ import dev.dshmobile.model.WorkspaceListValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
@@ -121,6 +124,8 @@ class DshApiClient(baseUrl: String) {
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .writeTimeout(8, TimeUnit.SECONDS)
+        // 回答可能已被宿主接收，断连后重发会造成重复提交；由投影确认最终状态。
+        .retryOnConnectionFailure(false)
         .applyDebugEmulatorHostRewrite()
         .addInterceptor(DshAuthSession.authInterceptor)
         .build()
@@ -133,6 +138,18 @@ class DshApiClient(baseUrl: String) {
 
     @Volatile
     private var rpcStyle: RpcStyle? = null
+
+    /** 只允许本代活动流回答；旧通知和断线前的卡片不能借新地址提交。 */
+    @Volatile
+    private var interactionClientId: String? = null
+
+    @Synchronized
+    fun setInteractionClient(clientId: String?) {
+        interactionClientId = clientId?.takeIf { it.isNotBlank() }
+    }
+
+    fun isInteractionClientActive(clientId: String): Boolean =
+        clientId.isNotBlank() && interactionClientId == clientId
 
     /** 规范化：去尾部斜杠；https(wss) 保持。空输入保持原样由调用方校验。 */
     private fun normalizeBaseUrl(url: String): String = url.trim().trimEnd('/')
@@ -149,6 +166,7 @@ class DshApiClient(baseUrl: String) {
         authToken = token
         DshAuthSession.configure(normalizedBase, authToken)
         rpcStyle = null   // 换宿主后 RPC 协议需重新探测（新版斜杠 / 旧版点号）
+        interactionClientId = null
         generationCounter.incrementAndGet()
         closeAllEventSockets()
     }
@@ -188,6 +206,83 @@ class DshApiClient(baseUrl: String) {
             if (first !is ApiResult.NetError) rpcStyle = preferred   // 拿到业务响应即确认协议
             first
         }
+
+    /**
+     * 现代命名参数调用：精确保留 args，不添加旧会话接口的 request 包装。
+     * 新交互接口可能返回 void、null 或布尔值，不能套用只允许对象的 call()。
+     */
+    suspend fun callModernRaw(method: String, args: JsonObject): ApiResult<JsonElement?> =
+        withContext(Dispatchers.IO) {
+            executeModernRaw(method, args, httpClient, currentBaseUrl())
+        }
+
+    private fun executeModernRaw(
+        method: String,
+        args: JsonObject,
+        client: OkHttpClient,
+        baseUrl: String,
+    ): ApiResult<JsonElement?> {
+        val envelope = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", UUID.randomUUID().toString())
+            put("method", method)
+            put("payload", buildJsonObject { put("args", args) })
+        }
+        val request = try {
+            Request.Builder()
+                .url("$baseUrl/api/$method")
+                .post(envelope.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .header("Accept", "application/json")
+                .build()
+        } catch (e: IllegalArgumentException) {
+            return ApiResult.NetError(e)
+        }
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return ApiResult.NetError(IOException("HTTP ${response.code}"))
+                }
+                val parsed = dev.dshmobile.model.FrameParser.parseServerResponse(
+                    response.body?.string().orEmpty(),
+                ) ?: return ApiResult.NetError(IOException("服务端响应信封格式错误"))
+                when {
+                    parsed.result.ok -> ApiResult.Ok(parsed.result.value)
+                    parsed.result.error != null -> ApiResult.BizError(
+                        parsed.result.error.code,
+                        parsed.result.error.message,
+                    )
+                    else -> ApiResult.NetError(IOException("服务端失败响应缺少错误信息"))
+                }
+            }
+        } catch (e: Exception) {
+            ApiResult.NetError(e)
+        }
+    }
+
+    /**
+     * 提交现代交互结果或委派、超时结果。HTTP 成功只表示已提交，最终状态等宿主收敛。
+     * 检查活动 client 与读取基址在同一把锁下完成，避免换址后把旧回答发给新宿主。
+     */
+    suspend fun sendInteractionOutcome(
+        target: InteractionTarget.Remote,
+        outcome: JsonObject,
+    ): RespondReceipt = withContext(Dispatchers.IO) {
+        val baseUrl = synchronized(this@DshApiClient) {
+            if (!isInteractionClientActive(target.clientId)) null else normalizedBase
+        } ?: return@withContext RespondReceipt.Transport("交互连接已失效，请重新连接后回答")
+        val args = buildJsonObject {
+            put("clientId", target.clientId)
+            put("eventId", target.eventId)
+            put("outcome", outcome)
+        }
+        when (val result = executeModernRaw("\$events/result", args, respondClient, baseUrl)) {
+            is ApiResult.Ok -> RespondReceipt.Accepted
+            is ApiResult.BizError -> RespondReceipt.BadResponse("${result.code}: ${result.message}")
+            is ApiResult.NetError -> RespondReceipt.Transport(
+                "交互回答发送失败：${result.throwable.message.orEmpty()}",
+            )
+        }
+    }
 
     /** 是否 404（协议不匹配的判据）：NetError 消息形如 "HTTP 404"。 */
     private fun isNotFound(result: ApiResult<JsonObject>): Boolean =
@@ -596,7 +691,17 @@ class DshApiClient(baseUrl: String) {
         sessionId: String,
         approvalId: String,
         allow: Boolean,
+        target: InteractionTarget? = null,
     ): RespondReceipt {
+        if (target is InteractionTarget.Remote) {
+            return sendInteractionOutcome(target, buildJsonObject {
+                put("kind", "result")
+                put("value", if (allow) "allowed-once" else "rejected")
+            })
+        }
+        if (target is InteractionTarget.Continued) {
+            return RespondReceipt.BadResponse("审批不支持稍后回答地址")
+        }
         val value = buildJsonObject {
             put("sessionId", sessionId)
             put("approvalId", approvalId)
@@ -610,12 +715,52 @@ class DshApiClient(baseUrl: String) {
         rpcId: String,
         sessionId: String,
         answers: List<QuestionAnswerItem>,
+        target: InteractionTarget? = null,
     ): RespondReceipt {
         val answersArray = JsonArray(answers.map { answer -> buildJsonObject {
             put("id", answer.id)
             put("selected", JsonArray(answer.selected.map { JsonPrimitive(it) }))
             answer.custom?.let { put("custom", it) }
         } })
+        val answerValue = buildJsonObject { put("answers", answersArray) }
+        when (target) {
+            is InteractionTarget.Remote -> return sendInteractionOutcome(target, buildJsonObject {
+                put("kind", "result")
+                put("value", answerValue)
+            })
+            is InteractionTarget.Continued -> return withContext(Dispatchers.IO) {
+                // 投影回答同样绑定宿主世代，不能把换址前的卡片提交到新宿主。
+                val baseUrl = synchronized(this@DshApiClient) {
+                    if (target.generation != null && target.generation != generation()) null else normalizedBase
+                } ?: return@withContext RespondReceipt.Transport("回答地址已失效，请刷新当前会话后回答")
+                val args = buildJsonObject {
+                    put("agentId", target.agentId)
+                    put("callId", target.callId)
+                    put("answer", answerValue)
+                }
+                when (val result = executeModernRaw(
+                    "userQuestions/answer", args, respondClient, baseUrl,
+                )) {
+                    is ApiResult.Ok -> when (
+                        (result.value as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull
+                    ) {
+                        true -> RespondReceipt.Accepted
+                        false -> RespondReceipt.NotPending("not-pending")
+                        null -> RespondReceipt.Malformed(result.value?.toString())
+                    }
+                    // 已排队不能重发；保留原始代码让调用方刷新权威投影并禁用提交。
+                    is ApiResult.BizError -> if (result.code == "REPLY_QUEUED") {
+                        RespondReceipt.NotPending(result.code)
+                    } else {
+                        RespondReceipt.BadResponse("${result.code}: ${result.message}")
+                    }
+                    is ApiResult.NetError -> RespondReceipt.Transport(
+                        "交互回答发送失败：${result.throwable.message.orEmpty()}",
+                    )
+                }
+            }
+            null -> Unit
+        }
         val value = buildJsonObject {
             put("sessionId", sessionId)
             put("answer", buildJsonObject { put("answers", answersArray) })

@@ -35,7 +35,7 @@ DeepSeek Harness（`dsh web`，监听 127.0.0.1:3080）。
 | 语言 | Kotlin（JVM 17） |
 | UI | Jetpack Compose + Material3 |
 | 架构 | 分层 + MVVM + 单向数据流 |
-| 网络 | OkHttp（HTTP RPC 与周期对账；`remote.mux` 仅承载新版工作区订阅流） |
+| 网络 | OkHttp（HTTP RPC 与周期对账；`remote.mux` 承载工作区订阅、现代交互事件和限时等待） |
 | 序列化 | kotlinx-serialization-json |
 | 并发 | kotlinx-coroutines（Flow/StateFlow/SharedFlow） |
 | 持久化 | DataStore<Preferences>（设置）+ SharedPreferences（会话 Cookie，30 天复用） |
@@ -83,7 +83,7 @@ UI 只通过 `DshRepository` 的只读流消费状态，实现服务与界面生
 | `ui` | Compose 界面 + ViewModel + UI 状态与策略 |
 | `service` | 前台监听服务、通知状态机、事件去重 |
 | `notify` | 系统通知构建与广播接收器（通知内按钮应答） |
-| `network` | DshApiClient：HTTP RPC、历史/列表查询与工作区订阅流 |
+| `network` | DshApiClient：HTTP RPC、现代交互回答及工作区订阅连接 |
 | `data` | SettingsStore：服务器地址 + 通知开关持久化 |
 | `model` | 协议模型、帧解析、信封结构（对照宿主 schema） |
 | 根包 | DshApplication（初始化）、DshRepository（状态源）、MainActivity |
@@ -209,8 +209,23 @@ remote.mux workspace/follow ──> EventStreamService ──> DshRepository.wor
 | `app/src/main/java/dev/dshmobile/DshRepository.kt` | 单例状态源 |
 | `app/src/main/java/dev/dshmobile/network/DshApiClient.kt` | 通信客户端 |
 | `app/src/main/java/dev/dshmobile/service/EventStreamService.kt` | 前台监听服务 |
-| `app/src/main/java/dev/dshmobile/service/NotificationStateMachine.kt` | 通知状态机 |
+| `app/src/main/java/dev/dshmobile/service/NotificationStateMachine.kt` | 通知与交互状态机 |
+| `app/src/main/java/dev/dshmobile/service/DshInteractionStream.kt` | 现代交互流与等待声明 |
+| `app/src/main/java/dev/dshmobile/model/InteractionTarget.kt` | 活动交互与稍后回答目标 |
 | `app/src/main/java/dev/dshmobile/ui/ConversationViewModel.kt` | 对话页 ViewModel |
 | `app/src/main/java/dev/dshmobile/data/SettingsStore.kt` | 配置持久化 |
 | `app/src/main/java/dev/dshmobile/DshApplication.kt` | 入口与通知通道初始化 |
 | `app/src/test/java/dev/dshmobile/` | 单元测试（状态机/解析/去重/流式） |
+
+## 2026-10-20 现代交互通道
+
+会话列表与历史继续周期轮询，工作区继续订阅 `workspace/follow`。
+审批和提问由 `DshInteractionStream` 订阅 `/api/remote.mux` 上的 `$events`，
+通过 `$events/result` 回答；限时提问通过 `userQuestions/attachWait` 取得剩余等待时间。
+超时后的问题由 `userQuestions` 与 `inbox` 投影恢复，通过 `userQuestions/answer` 回答。
+
+状态机统一管理卡片、通知、断线重放和服务器世代。页面保存按题草稿并禁止重复提交。
+提交方不保证收到宿主取消事件，因此成功回执会通知服务按完整地址收敛本地状态。
+普通消息仍使用原有队列；等待交互时 App 显示原因，不自动替用户选择或重发消息。
+
+实现和验收入口见 [修复方案](requirements/2026-10-20-交互缺失与消息排队修复方案.md)。

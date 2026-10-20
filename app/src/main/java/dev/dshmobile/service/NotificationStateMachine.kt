@@ -3,6 +3,13 @@ package dev.dshmobile.service
 import dev.dshmobile.model.HostFrame
 import dev.dshmobile.model.MuxFrame
 import dev.dshmobile.model.SessionSummary
+import dev.dshmobile.model.InteractionTarget
+import dev.dshmobile.model.DshJson
+import dev.dshmobile.model.QuestionItem
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * 通知状态机（M3 核心，设计 §5.2 定稿：纯 Kotlin、无 Android 依赖、可 JVM 全分支单测）。
@@ -45,6 +52,8 @@ class NotificationStateMachine(
         val approvalId: String,
         val toolName: String,
         val reason: String?,
+        val target: InteractionTarget? = null,
+        val available: Boolean = true,
     )
 
     /** 提问挂起项：键为信封层 rpcId（questions.schema：提问无独立资源 id，rpcId 即标识）。 */
@@ -53,7 +62,13 @@ class NotificationStateMachine(
         val sessionId: String,
         val firstQuestionText: String,
         val questions: List<dev.dshmobile.model.QuestionItem> = emptyList(),
-    )
+        val target: InteractionTarget? = null,
+        val available: Boolean = true,
+        val callId: String? = null,
+        val answerQueued: Boolean = false,
+    ) {
+        val key: String get() = callId?.let { "$sessionId:$it" } ?: rpcId
+    }
 
     /** 通知指令：状态机的唯一输出。replay=true 表示键控去重命中的重放，执行层应静默更新。 */
     sealed interface Command {
@@ -70,6 +85,16 @@ class NotificationStateMachine(
     private val pendingQuestions = LinkedHashMap<String, QuestionInfo>()
     private val cancelSuppressUntil = HashMap<String, Long>()
     private var coldStart = true
+    private val questionProjectionSequences = HashMap<String, Long>()
+    private var interactionRevision = 0L
+    private val seenRemoteApprovalIds = HashSet<String>()
+    private val notifiedQuestionKeys = HashSet<String>()
+    private val submittedQuestionSequences = HashMap<String, Long>()
+    private var interactionHostGeneration: Long? = null
+    private var appliedQuestionProjectionRevision = 0L
+
+    fun interactionRevision(): Long = interactionRevision
+    fun questionProjectionRevision(): Long = appliedQuestionProjectionRevision
 
     /** 已归档会话集合（需求 2.9.3：不显示、不通知）。由 service 从 workspace.list / archived-sessions-changed 注入。 */
     private val archivedSessionIds = HashSet<String>()
@@ -267,6 +292,188 @@ class NotificationStateMachine(
     }
 
     // -------------------------------------------------------------------
+    // 输入：现代交互（不按历史子会话来源过滤，宿主已校验实时归属）
+    // -------------------------------------------------------------------
+
+    /** 换宿主后，旧调用地址、投影游标和去重记录不能影响新宿主的同名会话。 */
+    fun onInteractionHostGeneration(generation: Long): List<Command> {
+        val previous = interactionHostGeneration
+        interactionHostGeneration = generation
+        if (previous == null || previous == generation) return emptyList()
+        interactionRevision++
+        val commands = pendingApprovals.values.map { Command.CancelApproval(it.approvalId) } +
+            pendingQuestions.values.map { Command.CancelQuestion(it.rpcId) }
+        pendingApprovals.clear()
+        pendingQuestions.clear()
+        questionProjectionSequences.clear()
+        submittedQuestionSequences.clear()
+        seenRemoteApprovalIds.clear()
+        notifiedQuestionKeys.clear()
+        return commands
+    }
+
+    fun onRemoteApproval(info: ApprovalInfo): List<Command> {
+        interactionRevision++
+        val replay = !seenRemoteApprovalIds.add(info.approvalId)
+        pendingApprovals[info.approvalId] = info
+        return listOf(Command.ShowApproval(info, replay))
+    }
+
+    fun onRemoteQuestion(info: QuestionInfo): List<Command> {
+        interactionRevision++
+        val previous = pendingQuestions.put(info.key, info)
+        return buildList {
+            if (previous != null && previous.rpcId != info.rpcId) add(Command.CancelQuestion(previous.rpcId))
+            if (info.available && !info.answerQueued) {
+                add(Command.ShowQuestion(info, !notifiedQuestionKeys.add(info.key)))
+            } else if (previous != null) add(Command.CancelQuestion(previous.rpcId))
+        }
+    }
+
+    /** 新连接会重放仍待答的事件；已失效的旧审批和非限时问题不能永久残留。 */
+    fun onRemoteReady(): List<Command> {
+        interactionRevision++
+        val commands = mutableListOf<Command>()
+        for (info in pendingApprovals.values.filter { !it.available }) {
+            pendingApprovals.remove(info.approvalId)
+            commands += Command.CancelApproval(info.approvalId)
+        }
+        for (info in pendingQuestions.values.filter { !it.available && it.callId == null }) {
+            pendingQuestions.remove(info.key)
+            commands += Command.CancelQuestion(info.rpcId)
+        }
+        return commands
+    }
+
+    /** 只停用同一连接的地址，迟到的旧代断线不能撤销新代重放。 */
+    fun onRemoteDisconnected(clientId: String): List<Command> {
+        interactionRevision++
+        val commands = mutableListOf<Command>()
+        pendingApprovals.replaceAll { _, info ->
+            if ((info.target as? InteractionTarget.Remote)?.clientId == clientId) {
+                commands += Command.CancelApproval(info.approvalId)
+                info.copy(target = null, available = false)
+            } else info
+        }
+        pendingQuestions.replaceAll { _, info ->
+            if ((info.target as? InteractionTarget.Remote)?.clientId == clientId) {
+                commands += Command.CancelQuestion(info.rpcId)
+                info.copy(target = null, available = false)
+            } else info
+        }
+        return commands
+    }
+
+    fun onRemoteCancelled(target: InteractionTarget.Remote): List<Command> {
+        interactionRevision++
+        val commands = mutableListOf<Command>()
+        val approvals = pendingApprovals.values.filter { it.target == target }
+        for (info in approvals) {
+            pendingApprovals.remove(info.approvalId)
+            commands += Command.CancelApproval(info.approvalId)
+        }
+        val questions = pendingQuestions.values.filter { it.target == target }
+        for (info in questions) {
+            commands += Command.CancelQuestion(info.rpcId)
+            // 限时请求结束后仍可能进入稍后回答；保留稳定卡片及页面草稿，交由投影裁定。
+            if (info.callId != null) pendingQuestions[info.key] = info.copy(target = null, available = false)
+            else pendingQuestions.remove(info.key)
+        }
+        return commands
+    }
+
+    fun onContinuedSubmitted(target: InteractionTarget.Continued): List<Command> {
+        interactionRevision++
+        val info = pendingQuestions.values.firstOrNull { it.target == target } ?: return emptyList()
+        submittedQuestionSequences[info.key] = questionProjectionSequences[info.sessionId] ?: Long.MIN_VALUE
+        pendingQuestions[info.key] = info.copy(available = false, answerQueued = true)
+        return listOf(Command.CancelQuestion(info.rpcId))
+    }
+
+    /** 缺少或畸形投影不是空快照；只对有完整 userQuestions 的会话做撤卡。 */
+    fun onQuestionProjection(
+        sessionId: String,
+        values: JsonObject,
+        asOfSeq: Long? = null,
+        hostGeneration: Long? = null,
+    ): List<Command> {
+        val projection = values["userQuestions"] as? JsonObject ?: return emptyList()
+        val active = projection["active"] as? JsonArray ?: return emptyList()
+        if (asOfSeq != null && asOfSeq < (questionProjectionSequences[sessionId] ?: Long.MIN_VALUE)) return emptyList()
+        val parsed = active.map { element ->
+            val item = element as? JsonObject ?: return emptyList()
+            val callId = (item["callId"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+                ?: return emptyList()
+            val state = (item["state"] as? JsonPrimitive)?.contentOrNull
+            if (state != "open" && state != "continued") return emptyList()
+            val questions = parseQuestions(item["questions"] as? JsonArray ?: return emptyList())
+                ?: return emptyList()
+            Triple(callId, state, questions)
+        }
+        if (asOfSeq != null) questionProjectionSequences[sessionId] = asOfSeq
+        val inbox = values["inbox"] as? JsonObject
+        val completeInbox = inbox != null && inbox["next-step"] is JsonArray && inbox["next-turn"] is JsonArray
+        if (completeInbox) appliedQuestionProjectionRevision++
+        val queuedCalls = listOf("next-step", "next-turn").flatMap { placement ->
+            (inbox?.get(placement) as? JsonArray).orEmpty().mapNotNull { element ->
+                val source = (element as? JsonObject)?.get("source") as? JsonObject
+                if ((source?.get("kind") as? JsonPrimitive)?.contentOrNull == "user-question-reply") {
+                    (source?.get("callId") as? JsonPrimitive)?.contentOrNull
+                } else null
+            }
+        }.toSet()
+        val commands = mutableListOf<Command>()
+        val liveKeys = parsed.mapTo(HashSet()) { "$sessionId:${it.first}" }
+        for (old in pendingQuestions.values.toList()) {
+            if (old.sessionId == sessionId && old.callId != null && old.key !in liveKeys) {
+                // 活动事件的取消由现代流确认，不能让较早采样的空投影撤掉新问题。
+                if (old.target is InteractionTarget.Remote) continue
+                val submittedAt = submittedQuestionSequences[old.key]
+                if (submittedAt != null && (asOfSeq == null || asOfSeq <= submittedAt)) continue
+                pendingQuestions.remove(old.key)
+                submittedQuestionSequences.remove(old.key)
+                commands += Command.CancelQuestion(old.rpcId)
+            }
+        }
+        for ((callId, state, questions) in parsed) {
+            val key = "$sessionId:$callId"
+            val existing = pendingQuestions[key]
+            // open 投影不提供活动回答地址，不能把仍在 attachWait 的现代地址覆盖为 continued。
+            if (state == "open") continue
+            val submittedAt = submittedQuestionSequences[key]
+            if (submittedAt != null && asOfSeq != null && asOfSeq > submittedAt &&
+                completeInbox && callId !in queuedCalls
+            ) {
+                // 相同游标的空收件箱可能早于本地提交；只有后续权威快照能解除防重复状态。
+                submittedQuestionSequences.remove(key)
+            }
+            val queued = callId in queuedCalls || key in submittedQuestionSequences ||
+                (!completeInbox && existing?.answerQueued == true)
+            val mergedQuestions = questions.map { question ->
+                val previous = existing?.questions?.find { it.id == question.id }
+                question.copy(detail = question.detail ?: previous?.detail, intent = question.intent ?: previous?.intent)
+            }
+            val info = QuestionInfo(
+                rpcId = existing?.rpcId ?: key,
+                sessionId = sessionId,
+                firstQuestionText = mergedQuestions.first().question,
+                questions = mergedQuestions,
+                target = InteractionTarget.Continued(sessionId, callId, hostGeneration),
+                available = !queued,
+                callId = callId,
+                answerQueued = queued,
+            )
+            commands += onRemoteQuestion(info)
+        }
+        return commands
+    }
+
+    private fun parseQuestions(array: JsonArray): List<QuestionItem>? = try {
+        array.map { DshJson.decodeFromJsonElement(QuestionItem.serializer(), it) }
+            .takeIf { it.isNotEmpty() && it.all { question -> question.id.isNotBlank() && question.question.isNotBlank() } }
+    } catch (_: Exception) { null }
+
+    // -------------------------------------------------------------------
     // 输入：本地事件
     // -------------------------------------------------------------------
 
@@ -286,7 +493,8 @@ class NotificationStateMachine(
 
     fun pendingApproval(id: String): ApprovalInfo? = pendingApprovals[id]
 
-    fun pendingQuestion(rpcId: String): QuestionInfo? = pendingQuestions[rpcId]
+    fun pendingQuestion(rpcId: String): QuestionInfo? =
+        pendingQuestions[rpcId] ?: pendingQuestions.values.firstOrNull { it.rpcId == rpcId }
 
     /** 按会话分组的挂起审批（供对话页内联审批卡）。 */
     fun snapshotApprovals(): Map<String, List<ApprovalInfo>> =
