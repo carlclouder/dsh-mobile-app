@@ -1,0 +1,104 @@
+{
+  "source": "真实主机响应摘录，仅保留本次闭环所需字段，文本未改写。",
+  "hostVersion": "0.2.0-rc.2",
+  "appVersion": "0.1.187",
+  "running": false,
+  "blank": false,
+  "asOfSeq": 33,
+  "userQuestions": {
+    "active": [],
+    "settled": []
+  },
+  "inbox": {
+    "next-turn": [],
+    "next-step": []
+  },
+  "hasMore": false,
+  "events": [
+    {
+      "seq": 19,
+      "type": "tool/result",
+      "data": {
+        "turn": 1,
+        "step": 1,
+        "message": {
+          "role": "tool",
+          "toolCallId": "call_00_K9bqmhEuplU9eyjCqzrZ3458",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"answers\":[{\"id\":\"mobile-gif-choice\",\"selected\":[\"继续测试\"]}]}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 23,
+      "type": "assistant/message",
+      "data": {
+        "turn": 1,
+        "step": 2,
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "MOBILE_INTERACTION_OK"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 25,
+      "type": "turn/end",
+      "data": {
+        "turn": 1,
+        "reason": {
+          "kind": "completed"
+        }
+      }
+    },
+    {
+      "seq": 29,
+      "type": "user/message",
+      "data": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Reply only MOBILE_QUEUE_OK after the pending question."
+          }
+        ]
+      }
+    },
+    {
+      "seq": 31,
+      "type": "assistant/message",
+      "data": {
+        "turn": 2,
+        "step": 1,
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "MOBILE_QUEUE_OK"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 33,
+      "type": "turn/end",
+      "data": {
+        "turn": 2,
+        "reason": {
+          "kind": "completed"
+        }
+      }
+    }
+  ]
+}

@@ -3,6 +3,7 @@ package dev.dshmobile
 import android.content.Context
 import dev.dshmobile.data.SettingsStore
 import dev.dshmobile.model.WorkspaceView
+import dev.dshmobile.model.InteractionTarget
 import dev.dshmobile.network.DshApiClient
 import dev.dshmobile.service.NotificationStateMachine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +51,46 @@ object DshRepository {
 
     fun requestManualRefresh() {
         _manualRefreshRequests.tryEmit(Unit)
+    }
+
+    /** 当前对话仅用于补读缺失的交互投影，避免为全部历史会话逐一请求。 */
+    private val _activeConversationId = MutableStateFlow<String?>(null)
+    val activeConversationId: StateFlow<String?> = _activeConversationId.asStateFlow()
+
+    fun setActiveConversation(sessionId: String?) {
+        _activeConversationId.value = sessionId
+    }
+
+    fun clearActiveConversation(sessionId: String) {
+        _activeConversationId.compareAndSet(sessionId, null)
+    }
+
+    private val _interactionRefreshRequests =
+        kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val interactionRefreshRequests = _interactionRefreshRequests.asSharedFlow()
+
+    /** 回答结果不确定或宿主提示已排队时，立即读回权威投影。 */
+    fun requestInteractionRefresh(sessionId: String) {
+        _interactionRefreshRequests.tryEmit(sessionId)
+    }
+
+    private val _interactionSubmittedEvents =
+        kotlinx.coroutines.flow.MutableSharedFlow<InteractionTarget>(extraBufferCapacity = 64)
+    val interactionSubmittedEvents = _interactionSubmittedEvents.asSharedFlow()
+
+    /** 网关不向提交者回送取消帧；本地回执必须释放自己的活动地址与等待声明。 */
+    fun notifyInteractionSubmitted(target: InteractionTarget) {
+        _interactionSubmittedEvents.tryEmit(target)
+    }
+
+    data class InteractionRefreshCompletion(val sessionId: String, val requestStartedNanos: Long)
+    private val _interactionRefreshCompletions =
+        kotlinx.coroutines.flow.MutableSharedFlow<InteractionRefreshCompletion>(extraBufferCapacity = 16)
+    val interactionRefreshCompletions = _interactionRefreshCompletions.asSharedFlow()
+
+    /** 内容完全相同的权威快照也要通知页面，避免结果未知状态依赖 StateFlow 变化而永久等待。 */
+    fun notifyInteractionRefreshCompleted(sessionId: String, requestStartedNanos: Long) {
+        _interactionRefreshCompletions.tryEmit(InteractionRefreshCompletion(sessionId, requestStartedNanos))
     }
 
     /**

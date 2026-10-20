@@ -11,6 +11,8 @@ import androidx.core.app.NotificationManagerCompat
 import dev.dshmobile.DshApplication
 import dev.dshmobile.R
 import dev.dshmobile.data.NotificationToggles
+import dev.dshmobile.model.DshJson
+import dev.dshmobile.model.InteractionTarget
 import dev.dshmobile.service.NotificationStateMachine
 import dev.dshmobile.ui.ConversationActivity
 
@@ -22,7 +24,7 @@ import dev.dshmobile.ui.ConversationActivity
  * - 审批：("approval:"+approvalId).hashCode()   —— replay 同 id 覆盖实现静默更新
  * - 提问：("question:"+rpcId).hashCode()
  *
- * 审批按钮 PendingIntent extras 自包含全部应答字段（进程被杀后 Receiver 不依赖内存表，§5.3 P2）。
+ * 审批按钮 PendingIntent extras 自包含应答字段；现代地址由 Receiver 核对当前连接后使用。
  * 所有发布调用前检查 POST_NOTIFICATIONS 权限（Android 13+ 未授权时静默跳过）。
  */
 class NotificationHelper(private val context: Context) {
@@ -64,25 +66,28 @@ class NotificationHelper(private val context: Context) {
     }
 
     /** 审批通知（通知②，用户拍板要做按钮）：允许一次 / 拒绝，extras 自包含应答字段。 */
-    fun notifyApproval(info: NotificationStateMachine.ApprovalInfo) {
+    fun notifyApproval(info: NotificationStateMachine.ApprovalInfo, replay: Boolean = false) {
         if (!toggles.approval || !hasNotificationPermission()) return
-        val text = info.reason ?: "会话需要执行敏感操作"
-        val notification = baseBuilder(DshApplication.CHANNEL_APPROVAL)
+        val reason = info.reason ?: "会话需要执行敏感操作"
+        val text = if (info.available) reason else "连接已中断，请打开 App 恢复审批。\n$reason"
+        val builder = baseBuilder(DshApplication.CHANNEL_APPROVAL)
             .setContentTitle("审批请求：${info.toolName}")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(conversationPendingIntent(info.sessionId))
-            .addAction(0, "允许一次", approvalPendingIntent(info, allowed = true))
-            .addAction(0, "拒绝", approvalPendingIntent(info, allowed = false))
             .setAutoCancel(false) // 由应答结果驱动撤除（Receiver 调 cancel）
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE) // 锁屏不露按钮细节
             .setOnlyAlertOnce(true) // replay 同 id 覆盖时不重响（设计 §3.2 P2 去重）
-            .build()
-        notifyInternal(approvalNotificationId(info.approvalId), notification)
+            .setSilent(replay) // 断线曾撤通知，重放重新创建时也必须静默。
+        if (info.available) {
+            builder.addAction(0, "允许一次", approvalPendingIntent(info, allowed = true))
+                .addAction(0, "拒绝", approvalPendingIntent(info, allowed = false))
+        }
+        notifyInternal(approvalNotificationId(info.approvalId), builder.build())
     }
 
     /** 提问通知（通知③）：点击进对话页（GUI 内呈现答题卡，v1 不在通知上直接答）。 */
-    fun notifyQuestion(info: NotificationStateMachine.QuestionInfo) {
+    fun notifyQuestion(info: NotificationStateMachine.QuestionInfo, replay: Boolean = false) {
         if (!toggles.question || !hasNotificationPermission()) return
         val notification = baseBuilder(DshApplication.CHANNEL_QUESTION)
             .setContentTitle("Agent 提问")
@@ -90,17 +95,32 @@ class NotificationHelper(private val context: Context) {
             .setContentIntent(conversationPendingIntent(info.sessionId))
             .setAutoCancel(true)
             .setOnlyAlertOnce(true) // replay 同 id 覆盖时不重响
+            .setSilent(replay)
             .build()
         notifyInternal(questionNotificationId(info.rpcId), notification)
     }
 
     /** 审批通知文案更新为"应答失败"（BadResponse/Transport 分支，§5.3）。 */
-    fun showApprovalSendFailed(approvalId: String) {
+    fun showApprovalSendFailed(approvalId: String, sessionId: String? = null) {
         if (!hasNotificationPermission()) return
         val notification = baseBuilder(DshApplication.CHANNEL_APPROVAL)
             .setContentTitle("应答失败")
-            .setContentText("请打开 APP 重试")
+            .setContentText("请打开 App 恢复连接后重试")
+            .apply { sessionId?.let { setContentIntent(conversationPendingIntent(it)) } }
             .setAutoCancel(true)
+            .build()
+        notifyInternal(approvalNotificationId(approvalId), notification)
+    }
+
+    /** 请求期间移除按钮防重复，成功回执或宿主取消交由服务统一撤销通知。 */
+    fun showApprovalWaiting(approvalId: String, sessionId: String) {
+        if (!hasNotificationPermission()) return
+        val notification = baseBuilder(DshApplication.CHANNEL_APPROVAL)
+            .setContentTitle("审批应答待确认")
+            .setContentText("正在等待宿主确认，可打开 App 查看")
+            .setContentIntent(conversationPendingIntent(sessionId))
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(false)
             .build()
         notifyInternal(approvalNotificationId(approvalId), notification)
     }
@@ -146,7 +166,7 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-    /** 审批按钮：extras 自包含 {rpcId, sessionId, approvalId, allow}（进程被杀也能应答）。 */
+    /** 审批按钮保存完整交互地址，旧连接的按钮不会误用新连接地址。 */
     private fun approvalPendingIntent(
         info: NotificationStateMachine.ApprovalInfo,
         allowed: Boolean,
@@ -158,6 +178,9 @@ class NotificationHelper(private val context: Context) {
             .putExtra(ApprovalReceiver.EXTRA_OUTCOME_ALLOW, allowed)
             // action 携带 approvalId+方向：同一审批的两个按钮互不覆盖 PendingIntent
             .setAction("${info.approvalId}:${if (allowed) "allow" else "reject"}")
+        info.target?.let { target ->
+            intent.putExtra(ApprovalReceiver.EXTRA_TARGET, DshJson.encodeToString(InteractionTarget.serializer(), target))
+        }
         return PendingIntent.getBroadcast(
             context,
             if (allowed) REQUEST_CODE_ALLOW else REQUEST_CODE_REJECT,

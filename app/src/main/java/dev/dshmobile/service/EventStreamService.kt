@@ -70,6 +70,8 @@ class EventStreamService : android.app.Service() {
 
     /** 工作区订阅协程（新版 dsh：工作区与归档集合只存在于 `/api/remote.mux` 的 workspace/follow 流）。 */
     private var workspaceJob: Job? = null
+    private var interactionJob: Job? = null
+    private lateinit var interactionStream: DshInteractionStream
 
     /**
      * 工作区流是否已就绪（收到过 baseline）。
@@ -93,6 +95,15 @@ class EventStreamService : android.app.Service() {
     override fun onCreate() {
         super.onCreate()
         notifier = NotificationHelper(this)
+        interactionStream = DshInteractionStream(
+            api = DshRepository.apiClient,
+            scope = serviceScope,
+            stateMachine = stateMachine,
+            lock = machineLock,
+            publish = { commands -> executeCommands(commands) },
+            refresh = { sessionId -> serviceScope.launch { refreshQuestionProjection(sessionId) } },
+            log = { message -> android.util.Log.w(TAG, message) },
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -112,6 +123,19 @@ class EventStreamService : android.app.Service() {
             launch { collectLocalCancels() }
             launch { collectManualRefresh() }
             launch { collectStreamKicks() }
+            launch {
+                DshRepository.activeConversationId.collect { sessionId ->
+                    sessionId?.let { refreshQuestionProjection(it) }
+                }
+            }
+            launch {
+                DshRepository.interactionRefreshRequests.collect { sessionId ->
+                    refreshQuestionProjection(sessionId)
+                }
+            }
+            launch {
+                DshRepository.interactionSubmittedEvents.collect { target -> interactionStream.submitted(target) }
+            }
         }
         startStreams()
         return START_STICKY
@@ -144,6 +168,7 @@ class EventStreamService : android.app.Service() {
     }
 
     override fun onDestroy() {
+        interactionStream.close()
         serviceScope.cancel()
         unregisterNetworkCallback()
         releaseWakeLock()
@@ -160,6 +185,7 @@ class EventStreamService : android.app.Service() {
      * 无时限，此为实现保险——停流、常驻通知改为"已暂停"、自停，不抛 Fatal Exception。
      */
     override fun onTimeout(startId: Int, fgsType: Int) {
+        interactionStream.close()
         serviceScope.cancel()
         hostJob = null; muxJob = null
         startInForeground("监听已暂停", "点按恢复（系统限制前台服务运行时长）")
@@ -257,6 +283,9 @@ class EventStreamService : android.app.Service() {
         pollJob = serviceScope.launch { runPollingLoop() }
         workspaceJob?.cancel()
         workspaceJob = serviceScope.launch { runWorkspaceStream() }
+        interactionJob?.cancel()
+        interactionStream.close()
+        interactionJob = serviceScope.launch { interactionStream.run() }
     }
 
     // -------------------------------------------------------------------
@@ -435,6 +464,7 @@ class EventStreamService : android.app.Service() {
     private fun restartStreams(reason: String) {
         // 轮询模式无需强制重开连接：下一轮询周期（≤POLL_INTERVAL_MS）自然重跑，仅记日志便于排查
         android.util.Log.i(TAG, "poll kick: $reason (next tick within ${POLL_INTERVAL_MS}ms)")
+        if (::interactionStream.isInitialized) interactionStream.reconnect()
     }
 
     private enum class StreamKind(val path: String) {
@@ -614,13 +644,39 @@ class EventStreamService : android.app.Service() {
 
     private suspend fun runBaseline(): Boolean {
         var sessionListOk = false
+        val requestStartedNanos = System.nanoTime()
+        val generationAtRequest = DshRepository.apiClient.generation()
+        val interactionsAtRequest = synchronized(machineLock) {
+            if (DshRepository.apiClient.generation() == generationAtRequest) {
+                executeCommands(stateMachine.onInteractionHostGeneration(generationAtRequest))
+            }
+            stateMachine.interactionRevision()
+        }
         when (val result = DshRepository.apiClient.sessionList()) {
             is ApiResult.Ok -> {
+                if (DshRepository.apiClient.generation() != generationAtRequest) return false
                 sessionListOk = true
                 // 与帧处理同锁：对账合并 + 补发指令 + 快照发布原子化（终审 P1-1/P2-5）
                 synchronized(machineLock) {
+                    if (DshRepository.apiClient.generation() != generationAtRequest) return@synchronized
+                    executeCommands(stateMachine.onInteractionHostGeneration(generationAtRequest))
                     executeCommands(stateMachine.onBaseline(result.value))
+                    if (stateMachine.interactionRevision() == interactionsAtRequest) {
+                        for (session in result.value) {
+                            session.projections?.let { projections ->
+                                applyQuestionProjection(
+                                    session.sessionId, projections.values, projections.asOfSeq, generationAtRequest,
+                                    requestStartedNanos,
+                                )
+                            }
+                        }
+                    }
                     publishSnapshot()
+                }
+                // session/list 省略交互投影时只补读当前页面，缺失与请求失败均不当成空快照。
+                DshRepository.activeConversationId.value?.let { activeId ->
+                    val values = result.value.firstOrNull { it.sessionId == activeId }?.projections?.values
+                    if (values?.get("userQuestions") == null) refreshQuestionProjection(activeId)
                 }
             }
             is ApiResult.BizError ->
@@ -646,6 +702,49 @@ class EventStreamService : android.app.Service() {
         return sessionListOk
     }
 
+    private suspend fun refreshQuestionProjection(sessionId: String) {
+        val requestStartedNanos = System.nanoTime()
+        val generation = DshRepository.apiClient.generation()
+        val interactionsAtRequest = synchronized(machineLock) {
+            if (DshRepository.apiClient.generation() == generation) {
+                executeCommands(stateMachine.onInteractionHostGeneration(generation))
+            }
+            stateMachine.interactionRevision()
+        }
+        val args = buildJsonObject { put("request", buildJsonObject { put("sessionId", sessionId) }) }
+        when (val result = DshRepository.apiClient.callModernRaw("session/projections", args)) {
+            is ApiResult.Ok -> {
+                val projection = result.value as? kotlinx.serialization.json.JsonObject ?: return
+                val values = projection["values"] as? kotlinx.serialization.json.JsonObject ?: return
+                val asOfSeq = (projection["asOfSeq"] as? kotlinx.serialization.json.JsonPrimitive)
+                    ?.contentOrNull?.toLongOrNull()
+                synchronized(machineLock) {
+                    if (DshRepository.apiClient.generation() != generation) return@synchronized
+                    executeCommands(stateMachine.onInteractionHostGeneration(generation))
+                    if (stateMachine.interactionRevision() != interactionsAtRequest) return@synchronized
+                    applyQuestionProjection(sessionId, values, asOfSeq, generation, requestStartedNanos)
+                }
+            }
+            is ApiResult.BizError -> android.util.Log.w(TAG, "交互投影读取失败：${result.code}")
+            is ApiResult.NetError -> android.util.Log.w(TAG, "交互投影连接失败：${result.throwable.message}")
+        }
+    }
+
+    /** 状态未变也发布对账完成，但旧游标、畸形或过代快照不能解除页面的防重复状态。 */
+    private fun applyQuestionProjection(
+        sessionId: String,
+        values: kotlinx.serialization.json.JsonObject,
+        asOfSeq: Long?,
+        hostGeneration: Long,
+        requestStartedNanos: Long,
+    ) {
+        val before = stateMachine.questionProjectionRevision()
+        executeCommands(stateMachine.onQuestionProjection(sessionId, values, asOfSeq, hostGeneration))
+        if (stateMachine.questionProjectionRevision() != before) {
+            DshRepository.notifyInteractionRefreshCompleted(sessionId, requestStartedNanos)
+        }
+    }
+
     // -------------------------------------------------------------------
     // 指令执行与状态发布
     // -------------------------------------------------------------------
@@ -658,11 +757,11 @@ class EventStreamService : android.app.Service() {
                 is NotificationStateMachine.Command.CancelTurnComplete ->
                     notifier.cancelTurnComplete(command.sessionId)
                 is NotificationStateMachine.Command.ShowApproval ->
-                    notifier.notifyApproval(command.info)
+                    notifier.notifyApproval(command.info, command.replay)
                 is NotificationStateMachine.Command.CancelApproval ->
                     notifier.cancelApproval(command.approvalId)
                 is NotificationStateMachine.Command.ShowQuestion ->
-                    notifier.notifyQuestion(command.info)
+                    notifier.notifyQuestion(command.info, command.replay)
                 is NotificationStateMachine.Command.CancelQuestion ->
                     notifier.cancelQuestion(command.questionRpcId)
             }

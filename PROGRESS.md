@@ -11,9 +11,19 @@
 | 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
 | 设计文档 | `docs/DESIGN.md`（v1.1.1 评审修正 + §5.5 原生对话页修订 + §2.9 新增需求） |
 | 产物根 | `<repo>\` |
-| 最后更新 | 2026-08-26（三 bug 修复轮已提交 commit d781ff5：①上下文注入精简为单行来源显示 ②进会话滚真底 ③插话对齐 WebUI 五点 + sessionQueue StateFlow 快照镜像 + 双代理评审通过 + 功能对齐审计交付 docs/AUDIT-webui-alignment.md；共 12 文件 +784/−67） |
-| 当前版本 | `app/version.properties` → versionCode=186 / versionName=0.1.185（**每次 assemble 自动 +1**；本任务已同时生成 Debug 与 Release） |
-| 单测 | 114/114 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+| 最后更新 | 2026-10-20：交互缺失与消息排队修复完成；150项回归、双变体构建和真实设备GIF验收通过（详见本轮记录） |
+| 当前版本 | `app/version.properties` → versionCode=188 / versionName=0.1.187（**每次 assemble 自动 +1**；本任务已同时生成 Debug 与 Release） |
+| 单测 | 150/150 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+
+## 2026-10-20 交互缺失与消息排队（已修复并完成设备验收）
+
+- 已确认根因：App 原先依赖停用的旧交互事件和 `/api/respond`；新版主机通过 `$events` 下发审批与提问，通过 `$events/result` 接收回答。缺少接入导致交互不可见，工具等待使后续普通消息持续排队。
+- 已补齐现代交互订阅、审批与提问回答、限时等待和稍后回答、断线重放、跨端撤卡及通知应答。页面显示题目详情、选项说明和等待原因，并保留草稿、限制重复提交。
+- 用户明确本会话免审批，按授权完成实现、独立代码复审、统一构建和 GIF 设备验收。基线 `7b34ae5`；分支 `codex/fix-pending-interactions`。
+- `testDebugUnitTest` 全量 **150/150** 通过；`assembleDebug assembleRelease` 成功；正式签名校验通过。版本 **0.1.187（188）**。
+- 最新 Debug 包已装入模拟器并连接真实主机。安装前已等待的提问成功重放；App 发送后续消息进入队列；App 回答后两回合依次完成，最终主机 `running=false`、队列为空。
+- GIF 独立检查通过：排队演示 24 帧、回答演示 36 帧，每帧 800ms；操作前、中、后保留稳定画面。限时提问、稍后回答和通知操作通过协议测试及源码审查，本机当前无限等待模式未做这些路径的真实设备验收；真机未验证。
+- [13 项方案及交付对照](docs/requirements/2026-10-20-交互缺失与消息排队修复方案.md)；[场景、构建与 GIF 证据](test-evidence/pending-interactions-20261020/README.md)。
 
 ## 2026-10-18 Tailscale 远程链接中断修复（已完成并实测）
 

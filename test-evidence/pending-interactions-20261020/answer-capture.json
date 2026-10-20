@@ -1,0 +1,192 @@
+{
+  "intervalMs": 800,
+  "frames": [
+    {
+      "file": "answer-00.png",
+      "offsetMs": 0,
+      "sha256": "4896e70cb45e771df9202afdeebcaae3ab3e5831f8c784a74affb915add9c987"
+    },
+    {
+      "file": "answer-01.png",
+      "offsetMs": 801,
+      "sha256": "4896e70cb45e771df9202afdeebcaae3ab3e5831f8c784a74affb915add9c987"
+    },
+    {
+      "file": "answer-02.png",
+      "offsetMs": 1601,
+      "sha256": "057a2f7dfde4f39bff26d040ecb29f7d8c377832a441f372e79f12e36e62078a"
+    },
+    {
+      "file": "answer-03.png",
+      "offsetMs": 2400,
+      "sha256": "057a2f7dfde4f39bff26d040ecb29f7d8c377832a441f372e79f12e36e62078a"
+    },
+    {
+      "file": "answer-04.png",
+      "offsetMs": 3201,
+      "sha256": "e139565e03ae226164305fbec1df6b5d1065b08f5f5273385f10c0d3c0a38b75"
+    },
+    {
+      "file": "answer-05.png",
+      "offsetMs": 4000,
+      "sha256": "0873a94a430a94c4a61712cd243b3ab8e7758b9d166b0d09039a612c2b284d07"
+    },
+    {
+      "file": "answer-06.png",
+      "offsetMs": 4801,
+      "sha256": "0873a94a430a94c4a61712cd243b3ab8e7758b9d166b0d09039a612c2b284d07"
+    },
+    {
+      "file": "answer-07.png",
+      "offsetMs": 5600,
+      "sha256": "dfa8e1ba03617e6e4ab80c2c0344d260a8b98059264a4e8c500049c2206da790"
+    },
+    {
+      "file": "answer-08.png",
+      "offsetMs": 6401,
+      "sha256": "4bafb22204f5fa6b1ed6bf5c547e74435c55eee7f568ff2aeb742acc5f2e9ce5"
+    },
+    {
+      "file": "answer-09.png",
+      "offsetMs": 7201,
+      "sha256": "9f03020be76688b5dd718346d27af78d29c915526199af90f52248e992689483"
+    },
+    {
+      "file": "answer-10.png",
+      "offsetMs": 8001,
+      "sha256": "27390bba0d1bdf09fb096a91dedb11fb663f96957557ee421869643a8c16f259"
+    },
+    {
+      "file": "answer-11.png",
+      "offsetMs": 8801,
+      "sha256": "943ae42fb7eebadac1f42fda39b189151bc126fb9f29a27fa7463d68695a1a6c"
+    },
+    {
+      "file": "answer-12.png",
+      "offsetMs": 9601,
+      "sha256": "d649aa4f1ff914f55df6611b27345581cf50bde68ff9feb64cb41f4c4c94429a"
+    },
+    {
+      "file": "answer-13.png",
+      "offsetMs": 10400,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-14.png",
+      "offsetMs": 11200,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-15.png",
+      "offsetMs": 12001,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-16.png",
+      "offsetMs": 12801,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-17.png",
+      "offsetMs": 13601,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-18.png",
+      "offsetMs": 14401,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-19.png",
+      "offsetMs": 15201,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-20.png",
+      "offsetMs": 16001,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-21.png",
+      "offsetMs": 16800,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-22.png",
+      "offsetMs": 17601,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-23.png",
+      "offsetMs": 18401,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-24.png",
+      "offsetMs": 19201,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-25.png",
+      "offsetMs": 20001,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-26.png",
+      "offsetMs": 20800,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-27.png",
+      "offsetMs": 21601,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-28.png",
+      "offsetMs": 22400,
+      "sha256": "014f141453b8ee2d6e684b8146facff002b2b43ba7cf778d8b7306a18560ea18"
+    },
+    {
+      "file": "answer-29.png",
+      "offsetMs": 23200,
+      "sha256": "601a0c667cabcb25de91464a82f16d6f6ab0b18fa68e93d5f7f6b1a7674e95ab"
+    },
+    {
+      "file": "answer-30.png",
+      "offsetMs": 24001,
+      "sha256": "1ec13a07b5c68141042c62279cec0378f31a9a7c1274167bc90370483b510202"
+    },
+    {
+      "file": "answer-31.png",
+      "offsetMs": 24800,
+      "sha256": "a46cdd6461a05c225706bed666bab925bcb4f216a9b6641e32da00cfdb869d40"
+    },
+    {
+      "file": "answer-32.png",
+      "offsetMs": 25601,
+      "sha256": "a46cdd6461a05c225706bed666bab925bcb4f216a9b6641e32da00cfdb869d40"
+    },
+    {
+      "file": "answer-33.png",
+      "offsetMs": 26401,
+      "sha256": "a46cdd6461a05c225706bed666bab925bcb4f216a9b6641e32da00cfdb869d40"
+    },
+    {
+      "file": "answer-34.png",
+      "offsetMs": 27200,
+      "sha256": "1ec13a07b5c68141042c62279cec0378f31a9a7c1274167bc90370483b510202"
+    },
+    {
+      "file": "answer-35.png",
+      "offsetMs": 28000,
+      "sha256": "1ec13a07b5c68141042c62279cec0378f31a9a7c1274167bc90370483b510202"
+    }
+  ],
+  "gif": "answer-interaction.gif",
+  "gifFrames": 36,
+  "size": [
+    540,
+    1200
+  ],
+  "source": "adb exec-out screencap -p，1080×2400；无合成画面"
+}

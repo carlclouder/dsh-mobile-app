@@ -8,6 +8,9 @@ import dev.dshmobile.BuildConfig
 import dev.dshmobile.DshRepository
 import dev.dshmobile.model.ApiResult
 import dev.dshmobile.model.ConversationEvent
+import dev.dshmobile.model.InteractionTarget
+import dev.dshmobile.model.QuestionAnswerItem
+import dev.dshmobile.model.RespondReceipt
 import dev.dshmobile.service.NotificationStateMachine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,6 +105,26 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     private val _questions = MutableStateFlow<List<NotificationStateMachine.QuestionInfo>>(emptyList())
     val questions: StateFlow<List<NotificationStateMachine.QuestionInfo>> = _questions.asStateFlow()
 
+    /** 草稿跟随“会话 + 调用”保存，限时提问转为稍后回答或断线重放时不丢选择。 */
+    data class QuestionDraft(
+        val selections: Map<String, Set<String>> = emptyMap(),
+        val customs: Map<String, String> = emptyMap(),
+    )
+    private val _questionDrafts = MutableStateFlow<Map<String, QuestionDraft>>(emptyMap())
+    val questionDrafts: StateFlow<Map<String, QuestionDraft>> = _questionDrafts.asStateFlow()
+
+    enum class InteractionSubmitState { SENDING, SUBMITTED, QUEUED, SYNCING }
+    data class InteractionSubmission(
+        val target: InteractionTarget?,
+        val state: InteractionSubmitState,
+        val syncStartedNanos: Long? = null,
+    )
+    private val _interactionSubmissions = MutableStateFlow<Map<String, InteractionSubmission>>(emptyMap())
+    val interactionSubmissions: StateFlow<Map<String, InteractionSubmission>> = _interactionSubmissions.asStateFlow()
+
+    fun approvalActionKey(info: NotificationStateMachine.ApprovalInfo) = "approval:${info.approvalId}"
+    fun questionActionKey(info: NotificationStateMachine.QuestionInfo) = "question:${info.key}"
+
     /** 排队消息（需求：编辑/删除）。 */
     private val _queuedItems = MutableStateFlow<List<dev.dshmobile.model.QueueItem>>(emptyList())
     val queuedItems: StateFlow<List<dev.dshmobile.model.QueueItem>> = _queuedItems.asStateFlow()
@@ -114,6 +137,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     val steeringItemIds: StateFlow<Set<String>> = _steeringItemIds.asStateFlow()
 
     init {
+        DshRepository.setActiveConversation(sessionId)
         viewModelScope.launch { loadHistoryIfIdle() }
         viewModelScope.launch { collectLiveEvents() }
         viewModelScope.launch { loadModels() }
@@ -121,6 +145,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         viewModelScope.launch { collectStats() }
         viewModelScope.launch { collectApprovals() }
         viewModelScope.launch { collectQuestions() }
+        viewModelScope.launch { collectInteractionRefreshes() }
         // 流式节流刷新器：把高频 chunk 合并成低频 _messages.value 更新（修复 P0 卡死）
         startStreamFlusher()
         // running 来自 repository 会话快照（host/session-status 推送）
@@ -148,21 +173,134 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     private suspend fun collectApprovals() {
         DshRepository.pendingApprovals.collect { map ->
             _approvals.value = map[sessionId] ?: emptyList()
+            reconcileInteractionSubmissions("approval:", _approvals.value.associate {
+                approvalActionKey(it) to it.target
+            })
         }
     }
 
     private suspend fun collectQuestions() {
         DshRepository.pendingQuestions.collect { map ->
+            val previous = _questions.value.associateBy { it.key }
             _questions.value = map[sessionId] ?: emptyList()
+            reconcileInteractionSubmissions("question:", _questions.value.associate {
+                questionActionKey(it) to it.target
+            })
+            // 已排队回答被其他客户端删除后，权威卡片恢复可答；草稿继续保留。
+            for (info in _questions.value) {
+                val actionKey = questionActionKey(info)
+                val submission = _interactionSubmissions.value[actionKey] ?: continue
+                if (submission.target is InteractionTarget.Continued && submission.target == info.target &&
+                    submission.state == InteractionSubmitState.QUEUED && previous[info.key]?.answerQueued == true &&
+                    info.available && !info.answerQueued
+                ) setSubmissionResult(actionKey, info.target, null)
+            }
         }
     }
 
-    /**
-     * 应答审批：允许一次 / 拒绝。乐观移除卡片 + 回执三态收敛（RespondReceiptPolicy）：
-     * 受理/别处已处理维持移除；传输失败恢复卡片可重试——修复"应答失败卡片静默消失、审批永挂"
-     * 的死局路径（三态语义对齐 ApprovalReceiver 通知路径）。
-     */
-    fun respondApproval(rpcId: String, approvalId: String, allow: Boolean) {
+    private suspend fun collectInteractionRefreshes() {
+        DshRepository.interactionRefreshCompletions.collect { completion ->
+            if (completion.sessionId != sessionId) return@collect
+            val questions = DshRepository.pendingQuestions.value[sessionId].orEmpty()
+            for ((key, submission) in _interactionSubmissions.value) {
+                if ((submission.state != InteractionSubmitState.SYNCING &&
+                        submission.state != InteractionSubmitState.QUEUED) ||
+                    submission.target !is InteractionTarget.Continued ||
+                    completion.requestStartedNanos < (submission.syncStartedNanos ?: Long.MAX_VALUE)
+                ) continue
+                val current = questions.firstOrNull { questionActionKey(it) == key && it.target == submission.target }
+                when {
+                    current == null -> setSubmissionResult(key, submission.target, null)
+                    current.answerQueued -> setSubmissionResult(key, submission.target, InteractionSubmitState.QUEUED)
+                    current.available -> setSubmissionResult(key, submission.target, null)
+                }
+            }
+        }
+    }
+
+    /** 同步只重读权威状态，不会再次发送用户回答。 */
+    fun refreshQuestionState(info: NotificationStateMachine.QuestionInfo) {
+        if (_interactionSubmissions.value[questionActionKey(info)]?.state == InteractionSubmitState.SYNCING) {
+            DshRepository.requestInteractionRefresh(sessionId)
+        }
+    }
+
+    /** 旧地址的提交结果不能锁住重放后的新地址；草稿独立于地址，继续保留。 */
+    private fun reconcileInteractionSubmissions(prefix: String, targets: Map<String, InteractionTarget?>) {
+        _interactionSubmissions.value = _interactionSubmissions.value.filter { (key, submission) ->
+            !key.startsWith(prefix) || (targets.containsKey(key) && targets[key] == submission.target)
+        }
+    }
+
+    fun toggleQuestionOption(info: NotificationStateMachine.QuestionInfo, questionId: String, label: String) {
+        if (!info.available || info.answerQueued || questionActionKey(info) in _interactionSubmissions.value) return
+        val question = info.questions.firstOrNull { it.id == questionId } ?: return
+        val draft = _questionDrafts.value[info.key] ?: QuestionDraft()
+        val selected = draft.selections[questionId].orEmpty()
+        val next = if (question.multiSelect == true) {
+            if (label in selected) selected - label else selected + label
+        } else setOf(label)
+        _questionDrafts.value = _questionDrafts.value + (info.key to draft.copy(
+            selections = draft.selections + (questionId to next),
+        ))
+    }
+
+    fun updateQuestionCustom(info: NotificationStateMachine.QuestionInfo, questionId: String, text: String) {
+        if (!info.available || info.answerQueued || questionActionKey(info) in _interactionSubmissions.value) return
+        val draft = _questionDrafts.value[info.key] ?: QuestionDraft()
+        _questionDrafts.value = _questionDrafts.value + (info.key to draft.copy(
+            customs = draft.customs + (questionId to text),
+        ))
+    }
+
+    private fun setSubmissionResult(
+        key: String,
+        target: InteractionTarget?,
+        state: InteractionSubmitState?,
+        syncStartedNanos: Long? = null,
+    ) {
+        // 取消或重放可能先于 HTTP 回执到达，晚回执只更新自己发起的地址。
+        if (_interactionSubmissions.value[key]?.target != target || key !in _interactionSubmissions.value) return
+        _interactionSubmissions.value = if (state == null) _interactionSubmissions.value - key else
+            _interactionSubmissions.value + (key to InteractionSubmission(
+                target, state,
+                syncStartedNanos ?: if (state == InteractionSubmitState.QUEUED) System.nanoTime() else null,
+            ))
+    }
+
+    /** 现代审批先禁重复，成功回执交服务释放活动地址；旧协议保留三态回执。 */
+    fun respondApproval(info: NotificationStateMachine.ApprovalInfo, allow: Boolean) {
+        val current = _approvals.value.firstOrNull { it.approvalId == info.approvalId } ?: return
+        val actionKey = approvalActionKey(current)
+        if (!current.available || current.target != info.target || actionKey in _interactionSubmissions.value) return
+        _interactionSubmissions.value = _interactionSubmissions.value +
+            (actionKey to InteractionSubmission(current.target, InteractionSubmitState.SENDING))
+        if (current.target != null) {
+            viewModelScope.launch {
+                when (val receipt = DshRepository.apiClient.respondApproval(
+                    current.rpcId, sessionId, current.approvalId, allow, current.target,
+                )) {
+                    is RespondReceipt.Accepted, is RespondReceipt.NotPending -> {
+                        setSubmissionResult(actionKey, current.target, InteractionSubmitState.SUBMITTED)
+                        if (receipt is RespondReceipt.Accepted &&
+                            DshRepository.pendingApprovals.value[sessionId]
+                                ?.any { it.approvalId == current.approvalId && it.target == current.target } == true
+                        ) {
+                            // 网关不向回答来源发送 cancel，成功回执须释放本客户端持有的活动交互。
+                            DshRepository.notifyInteractionSubmitted(current.target)
+                        }
+                        DshRepository.requestInteractionRefresh(sessionId)
+                    }
+                    else -> {
+                        setSubmissionResult(actionKey, current.target, null)
+                        _actionError.value = "审批应答失败，请重试。"
+                    }
+                }
+            }
+            return
+        }
+        val rpcId = current.rpcId
+        val approvalId = current.approvalId
         // 移除前留存：应答失败时恢复卡片的依据
         val dismissed = _approvals.value.firstOrNull { it.approvalId == approvalId }
         _approvals.value = _approvals.value.filter { it.approvalId != approvalId }
@@ -175,6 +313,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                     _actionError.value = "该审批已在别处处理。"
                 RespondReceiptPolicy.Decision.RETRY -> restoreApprovalCard(dismissed, approvalId)
             }
+            setSubmissionResult(actionKey, null, null)
         }
     }
 
@@ -187,7 +326,75 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     }
 
     /** 应答提问：提交选择/自定义答案。回执三态收敛同 respondApproval（修复"回答丢失 + 会话永久卡住"）。 */
-    fun respondQuestion(rpcId: String, answers: List<dev.dshmobile.model.QuestionAnswerItem>) {
+    fun respondQuestion(info: NotificationStateMachine.QuestionInfo) {
+        val current = _questions.value.firstOrNull { it.key == info.key } ?: return
+        val actionKey = questionActionKey(current)
+        if (!current.available || current.answerQueued || current.target != info.target ||
+            actionKey in _interactionSubmissions.value
+        ) return
+        val draft = _questionDrafts.value[current.key] ?: QuestionDraft()
+        val answers = current.questions.map { question ->
+            QuestionAnswerItem(
+                id = question.id,
+                selected = draft.selections[question.id]?.toList().orEmpty(),
+                custom = draft.customs[question.id]?.takeIf { it.isNotBlank() },
+            )
+        }
+        _interactionSubmissions.value = _interactionSubmissions.value +
+            (actionKey to InteractionSubmission(current.target, InteractionSubmitState.SENDING))
+        if (current.target != null) {
+            viewModelScope.launch {
+                when (val receipt = DshRepository.apiClient.respondQuestion(
+                    current.rpcId, sessionId, answers, current.target,
+                )) {
+                    is RespondReceipt.Accepted -> {
+                        val state = if (current.target is InteractionTarget.Continued)
+                            InteractionSubmitState.QUEUED else InteractionSubmitState.SUBMITTED
+                        setSubmissionResult(actionKey, current.target, state)
+                        if (DshRepository.pendingQuestions.value[sessionId]
+                                ?.any { it.key == current.key && it.target == current.target } == true
+                        ) {
+                            DshRepository.notifyInteractionSubmitted(current.target)
+                        }
+                        DshRepository.requestInteractionRefresh(sessionId)
+                    }
+                    is RespondReceipt.NotPending -> {
+                        val queued = receipt.rawReason == "REPLY_QUEUED"
+                        val syncing = !queued && current.target is InteractionTarget.Continued
+                        setSubmissionResult(actionKey, current.target,
+                            when {
+                                queued -> InteractionSubmitState.QUEUED
+                                syncing -> InteractionSubmitState.SYNCING
+                                else -> InteractionSubmitState.SUBMITTED
+                            },
+                            syncStartedNanos = if (syncing) System.nanoTime() else null)
+                        if (queued && current.target is InteractionTarget.Continued &&
+                            DshRepository.pendingQuestions.value[sessionId]
+                                ?.any { it.key == current.key && it.target == current.target } == true
+                        ) DshRepository.notifyInteractionSubmitted(current.target)
+                        _actionError.value = if (queued) "回答已排队，等待宿主处理。" else "提问状态已变化，正在刷新。"
+                        DshRepository.requestInteractionRefresh(sessionId)
+                    }
+                    else -> {
+                        val uncertain = current.target is InteractionTarget.Continued &&
+                            receipt is RespondReceipt.BadResponse &&
+                            receipt.rawReason?.substringBefore(':')?.trim() == "gateway/internal"
+                        if (uncertain) {
+                            setSubmissionResult(actionKey, current.target, InteractionSubmitState.SYNCING, System.nanoTime())
+                            _actionError.value = "回答状态暂未确认，正在同步宿主状态；草稿已保留"
+                        } else {
+                            setSubmissionResult(actionKey, current.target, null)
+                            _actionError.value = "回答发送失败，已保留草稿，请重试。"
+                        }
+                        if (current.target is InteractionTarget.Continued) {
+                            DshRepository.requestInteractionRefresh(sessionId)
+                        }
+                    }
+                }
+            }
+            return
+        }
+        val rpcId = current.rpcId
         val dismissed = _questions.value.firstOrNull { it.rpcId == rpcId }
         _questions.value = _questions.value.filter { it.rpcId != rpcId }
         viewModelScope.launch {
@@ -199,6 +406,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                     _actionError.value = "该提问已在别处处理。"
                 RespondReceiptPolicy.Decision.RETRY -> restoreQuestionCard(dismissed, rpcId)
             }
+            setSubmissionResult(actionKey, null, null)
         }
     }
 
@@ -639,6 +847,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
 
     /** ViewModel 销毁：清理流式节流缓冲（避免残留占位）。 */
     override fun onCleared() {
+        DshRepository.clearActiveConversation(sessionId)
         streamTextBuf.setLength(0)
         streamThinkBuf.setLength(0)
         streamPending = false
