@@ -1,0 +1,189 @@
+{
+  "device": "emulator-5554",
+  "package": "dev.dshmobile",
+  "version": "0.1.195 (196)",
+  "intervalMs": 1500,
+  "frames": [
+    {
+      "index": 0,
+      "scheduledMs": 0,
+      "captureMs": 0,
+      "sha256": "583656b396655b97eedef3a790b7e1954c8914a07da204d4a95a345ac516d0bc",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 1,
+      "scheduledMs": 1500,
+      "captureMs": 1500,
+      "sha256": "583656b396655b97eedef3a790b7e1954c8914a07da204d4a95a345ac516d0bc",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 2,
+      "scheduledMs": 3000,
+      "captureMs": 3000,
+      "sha256": "583656b396655b97eedef3a790b7e1954c8914a07da204d4a95a345ac516d0bc",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 3,
+      "scheduledMs": 4500,
+      "captureMs": 4501,
+      "sha256": "583656b396655b97eedef3a790b7e1954c8914a07da204d4a95a345ac516d0bc",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 4,
+      "scheduledMs": 6000,
+      "captureMs": 6001,
+      "sha256": "55e4ba99e634c6ddc908f8276032c0d73272234871068d99ecd8757ac0f7eb74",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 5,
+      "scheduledMs": 7500,
+      "captureMs": 7501,
+      "sha256": "4b7a6062292dd60d49e78aadc73f264939e364bf41994692059ab328cdcac979",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 6,
+      "scheduledMs": 9000,
+      "captureMs": 9000,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 7,
+      "scheduledMs": 10500,
+      "captureMs": 10501,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 8,
+      "scheduledMs": 12000,
+      "captureMs": 12001,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 9,
+      "scheduledMs": 13500,
+      "captureMs": 13501,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 10,
+      "scheduledMs": 15000,
+      "captureMs": 15000,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 11,
+      "scheduledMs": 16500,
+      "captureMs": 16500,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 12,
+      "scheduledMs": 18000,
+      "captureMs": 18000,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 13,
+      "scheduledMs": 19500,
+      "captureMs": 19500,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 14,
+      "scheduledMs": 21000,
+      "captureMs": 21001,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 15,
+      "scheduledMs": 22500,
+      "captureMs": 22501,
+      "sha256": "828df375984c6fcc9cb97da1889f193911a101e32f0097531a4d5b60bea0c0de",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    }
+  ],
+  "events": [
+    {
+      "atMs": 6001,
+      "action": "点按桌面底部右侧dev.dshmobile铠甲鲸鱼图标"
+    },
+    {
+      "atMs": 9170,
+      "action": "系统确认目标App主页面位于前台",
+      "activity": [
+        "    topResumedActivity=ActivityRecord{fde29ab u0 dev.dshmobile/.MainActivity t114}",
+        "  ResumedActivity: ActivityRecord{fde29ab u0 dev.dshmobile/.MainActivity t114}"
+      ]
+    }
+  ],
+  "continuous": true,
+  "edits": "仅等比例缩至540×1200并编码GIF，保留全部采样帧",
+  "gifSha256": "baaa6cc8f1bd0151455d83b4d1cd8a46966f7de6cba582df16a50cc347b79908",
+  "actualIntervalRangeMs": [
+    1499,
+    1501
+  ]
+}
