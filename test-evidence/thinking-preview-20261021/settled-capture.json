@@ -1,0 +1,150 @@
+{
+  "intervalMs": 800,
+  "source": "adb exec-out screencap，RGBA原样转PNG，无绘制或补帧",
+  "frames": [
+    {
+      "file": "settled-000.png",
+      "offsetMs": 0,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-001.png",
+      "offsetMs": 800,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-002.png",
+      "offsetMs": 1600,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-003.png",
+      "offsetMs": 2401,
+      "sha256": "1d5b5a13c727c5f7342b5a3bef4bead7170b2a7970ecf17164d1c9ce0f9fc2f1",
+      "rawSha256": "64c1f62ef3f954022561642b6dc40aa408dc92d86dc86d9390bbf9c10b9e4507"
+    },
+    {
+      "file": "settled-004.png",
+      "offsetMs": 3200,
+      "sha256": "1d5b5a13c727c5f7342b5a3bef4bead7170b2a7970ecf17164d1c9ce0f9fc2f1",
+      "rawSha256": "64c1f62ef3f954022561642b6dc40aa408dc92d86dc86d9390bbf9c10b9e4507"
+    },
+    {
+      "file": "settled-005.png",
+      "offsetMs": 4001,
+      "sha256": "1d5b5a13c727c5f7342b5a3bef4bead7170b2a7970ecf17164d1c9ce0f9fc2f1",
+      "rawSha256": "64c1f62ef3f954022561642b6dc40aa408dc92d86dc86d9390bbf9c10b9e4507"
+    },
+    {
+      "file": "settled-006.png",
+      "offsetMs": 4800,
+      "sha256": "1d5b5a13c727c5f7342b5a3bef4bead7170b2a7970ecf17164d1c9ce0f9fc2f1",
+      "rawSha256": "64c1f62ef3f954022561642b6dc40aa408dc92d86dc86d9390bbf9c10b9e4507"
+    },
+    {
+      "file": "settled-007.png",
+      "offsetMs": 5601,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-008.png",
+      "offsetMs": 6401,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-009.png",
+      "offsetMs": 7200,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-010.png",
+      "offsetMs": 8000,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-011.png",
+      "offsetMs": 8800,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-012.png",
+      "offsetMs": 9600,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-013.png",
+      "offsetMs": 10401,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-014.png",
+      "offsetMs": 11200,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    },
+    {
+      "file": "settled-015.png",
+      "offsetMs": 12001,
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387",
+      "rawSha256": "ad36ed2e368127ebd883b900eab38c031a9f5b7bea412d7c6e3147b8678e7d09"
+    }
+  ],
+  "errors": [],
+  "gif": {
+    "file": "settled.gif",
+    "sha256": "e5b92de03a35cb60a2b5314de54af5043aedec08af6c5e68f2e6ffcd5dd82fcd",
+    "frames": 16,
+    "durationMs": 12800,
+    "intervalMinMs": 799,
+    "intervalMaxMs": 801,
+    "schedulingDriftMs": 1,
+    "conversion": "真实原始帧逐帧按序转换，保持帧数，不裁切、不补帧、不插值；GIF固定时长。"
+  },
+  "retainedFrames": [
+    {
+      "index": 0,
+      "file": "key-settled-000.png",
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387"
+    },
+    {
+      "index": 1,
+      "file": "key-settled-001.png",
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387"
+    },
+    {
+      "index": 3,
+      "file": "key-settled-003.png",
+      "sha256": "1d5b5a13c727c5f7342b5a3bef4bead7170b2a7970ecf17164d1c9ce0f9fc2f1"
+    },
+    {
+      "index": 4,
+      "file": "key-settled-004.png",
+      "sha256": "1d5b5a13c727c5f7342b5a3bef4bead7170b2a7970ecf17164d1c9ce0f9fc2f1"
+    },
+    {
+      "index": 7,
+      "file": "key-settled-007.png",
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387"
+    },
+    {
+      "index": 8,
+      "file": "key-settled-008.png",
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387"
+    },
+    {
+      "index": 15,
+      "file": "key-settled-015.png",
+      "sha256": "1eb29359854f0c493a42f58badf3505dc2b13746261dee562e5ca85f11755387"
+    }
+  ]
+}

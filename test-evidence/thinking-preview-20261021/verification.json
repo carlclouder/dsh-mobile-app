@@ -1,0 +1,26 @@
+{
+  "versionName": "0.1.190",
+  "versionCode": 191,
+  "unitTests": {
+    "tests": 175,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "build": "testDebugUnitTest assembleDebug assembleRelease：BUILD SUCCESSFUL",
+  "releaseSignatureVerified": true,
+  "apks": [
+    {
+      "variant": "debug",
+      "file": "app\\build\\outputs\\apk\\debug\\DSH-Mobile-debug-v0.1.190.apk",
+      "bytes": 12203461,
+      "sha256": "68d61e3823066727034b60eb9547013618f560c1703867d538cd6fbb36b2ea0c"
+    },
+    {
+      "variant": "release",
+      "file": "app\\build\\outputs\\apk\\release\\DSH-Mobile-release-v0.1.190.apk",
+      "bytes": 2664240,
+      "sha256": "f4e9fff5070fa93fb1ffafb77475b46aa17261bf9412eead0c598cb317118784"
+    }
+  ]
+}

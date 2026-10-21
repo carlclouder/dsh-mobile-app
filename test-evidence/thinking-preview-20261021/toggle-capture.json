@@ -1,0 +1,779 @@
+{
+  "intervalMs": 500,
+  "source": "adb exec-out screencap，RGBA原样转PNG，无绘制或补帧",
+  "frames": [
+    {
+      "file": "toggle-000.png",
+      "offsetMs": 0,
+      "sha256": "a86eb2a0cbfb59ac0a3909796e0a4ce6ee44968d751970d43f0eb72871220e61",
+      "rawSha256": "1daee9227da9638d240a6942cf5fb5f9973c20c7413527bfb9d107bd3765115c"
+    },
+    {
+      "file": "toggle-001.png",
+      "offsetMs": 500,
+      "sha256": "a86eb2a0cbfb59ac0a3909796e0a4ce6ee44968d751970d43f0eb72871220e61",
+      "rawSha256": "1daee9227da9638d240a6942cf5fb5f9973c20c7413527bfb9d107bd3765115c"
+    },
+    {
+      "file": "toggle-002.png",
+      "offsetMs": 1000,
+      "sha256": "3b4579b0e7b5ecebce792d695cfc66086b178daa4a4a643a244ee57d7a1d7b00",
+      "rawSha256": "db0f9be035f7d9be06bff79b70bb04b97b50587111dfbac9049880391846e264"
+    },
+    {
+      "file": "toggle-003.png",
+      "offsetMs": 1500,
+      "sha256": "3b4579b0e7b5ecebce792d695cfc66086b178daa4a4a643a244ee57d7a1d7b00",
+      "rawSha256": "db0f9be035f7d9be06bff79b70bb04b97b50587111dfbac9049880391846e264"
+    },
+    {
+      "file": "toggle-004.png",
+      "offsetMs": 2001,
+      "sha256": "3b4579b0e7b5ecebce792d695cfc66086b178daa4a4a643a244ee57d7a1d7b00",
+      "rawSha256": "db0f9be035f7d9be06bff79b70bb04b97b50587111dfbac9049880391846e264"
+    },
+    {
+      "file": "toggle-005.png",
+      "offsetMs": 2501,
+      "sha256": "3b4579b0e7b5ecebce792d695cfc66086b178daa4a4a643a244ee57d7a1d7b00",
+      "rawSha256": "db0f9be035f7d9be06bff79b70bb04b97b50587111dfbac9049880391846e264"
+    },
+    {
+      "file": "toggle-006.png",
+      "offsetMs": 3001,
+      "sha256": "3b4579b0e7b5ecebce792d695cfc66086b178daa4a4a643a244ee57d7a1d7b00",
+      "rawSha256": "db0f9be035f7d9be06bff79b70bb04b97b50587111dfbac9049880391846e264"
+    },
+    {
+      "file": "toggle-007.png",
+      "offsetMs": 3501,
+      "sha256": "4c6d924ac733f3fb47ab03dfe612978d466a7858f57ce1729fc8b87a10947484",
+      "rawSha256": "57c0876de7edd3a61bc8205fba60d58bb5cb986b005bf9c5d407cff354ba0617"
+    },
+    {
+      "file": "toggle-008.png",
+      "offsetMs": 4000,
+      "sha256": "c3e8d8e4227cf2d6101adcd06d58ad596a498757b6291720b579348f6f17b5f6",
+      "rawSha256": "48eb875c82422defa2639c3c9a1d10daa1774e31afd91ac7fdbe2863b7cc8dea"
+    },
+    {
+      "file": "toggle-009.png",
+      "offsetMs": 4500,
+      "sha256": "7d7ec744ddf56e27378eb5bdd9a436ea1d72246fcb3a6ffb818ccb931824143b",
+      "rawSha256": "443b626197eb0892a933b96e8473a22dc1247ebba20a549a08f65735859cfe39"
+    },
+    {
+      "file": "toggle-010.png",
+      "offsetMs": 5001,
+      "sha256": "b548f4bf7d117cf426bf5a7ecfb93da51e74104ad8b526a3ae813fd250b8be98",
+      "rawSha256": "ddc3c1e4bcc4695ef9738095c73fadfefe5915a5dabd1892d89072d219140849"
+    },
+    {
+      "file": "toggle-011.png",
+      "offsetMs": 5500,
+      "sha256": "1a95094ae3535a41383b32f17789a16ac6bb4c59978fce2d75042c76478ef899",
+      "rawSha256": "2c27669b21d18024b7f7a294b1e21239be0ee09a430bd6bafacff99d0c619db4"
+    },
+    {
+      "file": "toggle-012.png",
+      "offsetMs": 6001,
+      "sha256": "1ed4e6bceba4c8babfc3705a71f6a53f6071842b0bd9cd96816aa165ba999359",
+      "rawSha256": "c69d3b1b3c553ea566696f96375b517c8073a975e0d7916c2229c0d8c7e441a9"
+    },
+    {
+      "file": "toggle-013.png",
+      "offsetMs": 6500,
+      "sha256": "b88ba97638c2b0e8e5e0f2a77c9f74596839b78f0e9ef29f8be2c0fdf97a6b2a",
+      "rawSha256": "3f6132df2b434e07fc27cea970c7dc125034fb89a79a29670e810ba09caba317"
+    },
+    {
+      "file": "toggle-014.png",
+      "offsetMs": 7000,
+      "sha256": "ff21c935c94defc3907bd68ef83bfceafe1f5ecb86889858d9f98193e0cc1b6b",
+      "rawSha256": "b14c2b6b5f718b50706b6ed14d2e23527f4e252648c034ef585e2e7e955df359"
+    },
+    {
+      "file": "toggle-015.png",
+      "offsetMs": 7500,
+      "sha256": "9f156d0e57975d3c12a79411a3a11466ea49208c5575dbdce35023300d123cc2",
+      "rawSha256": "df7597a9ec7a4592e43fad168a51c08a27169247256feac87d9d0f8055419ccb"
+    },
+    {
+      "file": "toggle-016.png",
+      "offsetMs": 8000,
+      "sha256": "aaf145f2cc8f1d1143e4c177f0971803f5fb7f4f57648729be51b117e10c5486",
+      "rawSha256": "895a44e29138bcb92ed04c52391b9081f926dcd686477265e48a935f81e4ed0a"
+    },
+    {
+      "file": "toggle-017.png",
+      "offsetMs": 8501,
+      "sha256": "c14be83b94aa8f64c8429d012caf39a0c35b9b8d0e59b30aedaf8e20e9b88700",
+      "rawSha256": "74e59dad33f7b7589a480d9db09f2e0e5a0bc25f4778c39aa3e826e9925702d9"
+    },
+    {
+      "file": "toggle-018.png",
+      "offsetMs": 9001,
+      "sha256": "a0bbaefc6decafc5e2a24b4f6f4330125329c95536746a5dc957d5f5c1d4aade",
+      "rawSha256": "ce989071f6042c06199fca9b02079816f52bd1f2806f0ce2ed6d287d32ec629e"
+    },
+    {
+      "file": "toggle-019.png",
+      "offsetMs": 9500,
+      "sha256": "4d4a50b19402b1341c567ffc2d36fc5e24fa7ce4a45d2ccdf1b31dea7b9cce99",
+      "rawSha256": "cfa8d7e5e40505a54b4301e721af1425504dee9b6e568afc41ed0996ecfcde8e"
+    },
+    {
+      "file": "toggle-020.png",
+      "offsetMs": 10001,
+      "sha256": "179491ccba1b3db7eb61afd7c1a93fc960543eeb2f55cf7c2dc0bed17520d693",
+      "rawSha256": "06072b6dff5f6a8e8e24d04b7d95538684b608b249f5a384353120dfd4d9b9fa"
+    },
+    {
+      "file": "toggle-021.png",
+      "offsetMs": 10500,
+      "sha256": "7a0f1cf0a1efc0bec7b5721ad499ea0d533a1ab54fc95ac4cdee9638afe88919",
+      "rawSha256": "1f8f8b1e6c7f42ff5ad87e8606e268667f9b2bda74a8bb94853913d4c253393a"
+    },
+    {
+      "file": "toggle-022.png",
+      "offsetMs": 11000,
+      "sha256": "782a62c955b37eec43f552b285e91b8658e8fa5d1cec1dcce90d6f50b56a8bdd",
+      "rawSha256": "e8629c81e8c8da42276a1a2a622a97becd69a08fab578c6459bd03d7e5aa0503"
+    },
+    {
+      "file": "toggle-023.png",
+      "offsetMs": 11500,
+      "sha256": "37ac310440c7571e002d1622922ddca4223b81bb2ca69f55bb131e44f1ce0ed4",
+      "rawSha256": "9c6952b82b3624f11e9fcbea4d6f2bc0beac23e3f38581151125c88c9b65b985"
+    },
+    {
+      "file": "toggle-024.png",
+      "offsetMs": 12000,
+      "sha256": "700379801a2a35ce1d7e89d5cd1a3c08d5942ab3e454930b3301de2e8921f6f0",
+      "rawSha256": "d8522ca9e486676d0f77c69fc169c89456c51a22c34582d4af0449d5bbf02b47"
+    },
+    {
+      "file": "toggle-025.png",
+      "offsetMs": 12501,
+      "sha256": "a0980ab838484c35f5f95c5b8cb573ad85f1042be330ef405057c65b8a395433",
+      "rawSha256": "ba722e0b5479f0ef80e0a04241024e55a0cfa5db9109c80c7fe159b8abec9943"
+    },
+    {
+      "file": "toggle-026.png",
+      "offsetMs": 13000,
+      "sha256": "f82689e1b5f653e7d36f8ebd4189ca04bc24ecfddf6c9104011edc2d106ea148",
+      "rawSha256": "70e0003910449106380cb5ccce84c5576214be7b61fa042cc8debc0000cab4b2"
+    },
+    {
+      "file": "toggle-027.png",
+      "offsetMs": 13500,
+      "sha256": "281a77ff141fc2747b7782157ac5d9eba015bd18e3c0531f648184bbe3768596",
+      "rawSha256": "77f4fcd17ded57c64532dceb1dc3a959c936fc6c56cb67a1eecc2946d921fe53"
+    },
+    {
+      "file": "toggle-028.png",
+      "offsetMs": 14000,
+      "sha256": "7cfd09fe4a7f9eabad2e313b5ffc35d02c3368281577e00276db8f9025c6f247",
+      "rawSha256": "0b0019f40252e7ba3980f81055d86f05207636acf5bea2373704a7e3b0f6dbbc"
+    },
+    {
+      "file": "toggle-029.png",
+      "offsetMs": 14500,
+      "sha256": "139fd1d7883f3fdab4a373380abbd762ab531aa147b4e84fb574507505e77c02",
+      "rawSha256": "7bc5390ce28a092db10a335723901e89685ec39c5b6c8079f59d7a4265c4b617"
+    },
+    {
+      "file": "toggle-030.png",
+      "offsetMs": 15001,
+      "sha256": "125aa010e8a60d28003b77e4ddf8be520c4c714d479892076ac5a894ea736387",
+      "rawSha256": "afc90128ca4c74ccece269c9d11588a41a993eeb2a623a81d92bc75f0ccdadec"
+    },
+    {
+      "file": "toggle-031.png",
+      "offsetMs": 15500,
+      "sha256": "051cf4c80d472a293e558be10d9c705f4d1b1cf4f48fe9dd92803ca8d4bc332b",
+      "rawSha256": "9984b739d91a27cd70144039969d3dc2135ebc375529133e1d4c033fd62fa8f4"
+    },
+    {
+      "file": "toggle-032.png",
+      "offsetMs": 16000,
+      "sha256": "2d322d9192003d46ba095f6166d5063aac25d6a22babe1a0ae672ed2b07b2b24",
+      "rawSha256": "3b6342072425dead21088f4870daf98821f2c67de84279407fe8a371d7bc90e0"
+    },
+    {
+      "file": "toggle-033.png",
+      "offsetMs": 16500,
+      "sha256": "2da69bd48c10ad65a305baa6ec6f7d9bf7ea3c2361f6b077ec7d19fb1287a290",
+      "rawSha256": "c8b7caa619ffb3c19d5ef495ab4871a13b78772c6d21bb473b24bc13e876e5cc"
+    },
+    {
+      "file": "toggle-034.png",
+      "offsetMs": 17000,
+      "sha256": "604364014763a9921516ccb3207a3cdfbee9d9963ae334bfacd4756922fe4964",
+      "rawSha256": "db946e440b3ed7390ce57a207752a5d07edca1001646e013a30ae8dff00ef416"
+    },
+    {
+      "file": "toggle-035.png",
+      "offsetMs": 17501,
+      "sha256": "24368d99a02eb0fddb20ca2ecb52e6fdf2fa480062ee75947fb2caaa36afae93",
+      "rawSha256": "e86ce2205f7f9d511f14d7958c138bf72aee14a26ae99e8f3ca2da96de92275b"
+    },
+    {
+      "file": "toggle-036.png",
+      "offsetMs": 18000,
+      "sha256": "093651da12b865e395bff1fcb779a5407a239f48a47365869b3e8858a8a16f03",
+      "rawSha256": "1a75bcec87fc7c586d8986f174336d71199f1bfda2d0246a67cf597f3d502da4"
+    },
+    {
+      "file": "toggle-037.png",
+      "offsetMs": 18500,
+      "sha256": "a41382eeefa70557c134166be03152705dd2bd5ef0aad1a393e45524bed56ca6",
+      "rawSha256": "257a21a26972ea5be4d6c0cc3c49aa408e38a0a6abd57bfa1a2a7b2530166d2d"
+    },
+    {
+      "file": "toggle-038.png",
+      "offsetMs": 19000,
+      "sha256": "db57825bba66d2b8a9d7a9c0f58a183bbf4615a16ea247a3219c9c1f6cfb0bec",
+      "rawSha256": "a205f3694a984cc9bae37e684bf4a750551ab8d09afb4eccfe489af58c49e9cf"
+    },
+    {
+      "file": "toggle-039.png",
+      "offsetMs": 19500,
+      "sha256": "6bf8aa6ddf806c488dfba8e7f4d7aeee761b8b40b0fd765e543a04509d4f04e6",
+      "rawSha256": "2a42917cbbae5d5319e281c417923284a2ffca6a8d8985d8ebe3118448582047"
+    },
+    {
+      "file": "toggle-040.png",
+      "offsetMs": 20001,
+      "sha256": "789f52554b75d3fad7644d0918cbb21a9b9048aa95ddd458a923cb97da83900f",
+      "rawSha256": "8324fa16b95189a8700a669f5062290a441a098af9521c303899044e614e1d2f"
+    },
+    {
+      "file": "toggle-041.png",
+      "offsetMs": 20500,
+      "sha256": "c38de17db16af70558bec1f5a8d22b51ed91a3438572fb064fafe7f44845f9c0",
+      "rawSha256": "0b5d3b16c7191143b504a1f3a5ab3d554f2b62f14378a5099a1a331e4c9e97a5"
+    },
+    {
+      "file": "toggle-042.png",
+      "offsetMs": 21000,
+      "sha256": "43f66b5dee5530e54d5416d9d66517d9a1a74e5ce384bdd32ebf5e2adf973476",
+      "rawSha256": "c3bc81d2ed85a62a0555282aed69ca3c149e916c4249357f69732ceb6369c142"
+    },
+    {
+      "file": "toggle-043.png",
+      "offsetMs": 21500,
+      "sha256": "2ce167c734f504c773f99d9358345dd9aa4175a2c4fcb7c61915c7782d751356",
+      "rawSha256": "67b494cbbf6435e10cad40c87d5901fa0591031a8a0d50658c25e2aff3ca4b04"
+    },
+    {
+      "file": "toggle-044.png",
+      "offsetMs": 22000,
+      "sha256": "b00146e77d9eaff2d9da17717f3121cb8a055fc7e025cc7cf2c0335c15a38960",
+      "rawSha256": "c7ad1aa81a6b2375c4013e00580d345f0abef6f3d0d781d57cc946347529f6c8"
+    },
+    {
+      "file": "toggle-045.png",
+      "offsetMs": 22500,
+      "sha256": "49b701981dd47f52eac3e1ab87448911719fcb2febbac32e2e7b6cac5eee7407",
+      "rawSha256": "0041c541108141750ec0ed14bfa52d20b0ecf85e496fbc7c3942bbd173230953"
+    },
+    {
+      "file": "toggle-046.png",
+      "offsetMs": 23001,
+      "sha256": "e8be9a45ed0a755e74aee0b71d20a1bc19d11ba9e662312b56d2c5f38768bee7",
+      "rawSha256": "14a5c0cd9ad1f70738effcbb0cbdc0d6da575d4babd72c8efe03b14dc11c029c"
+    },
+    {
+      "file": "toggle-047.png",
+      "offsetMs": 23500,
+      "sha256": "d66701c6553572df18ade23a6cf68f8d82fbb35e5c0b628191e7b5993aacf5cf",
+      "rawSha256": "4ab6c32d1355733c69ab1e7249625d7ba98ee1054a1120527b3d3f2d31037f98"
+    },
+    {
+      "file": "toggle-048.png",
+      "offsetMs": 24000,
+      "sha256": "01bdb731d5f3984ad45c6f6d8438953ffb7a96ca0fc5b8db631ece041cd8c442",
+      "rawSha256": "c59c2522a1b6c0fbc5f7f1d625223fb34b419b8f312c0680558c4a8cb5bf075a"
+    },
+    {
+      "file": "toggle-049.png",
+      "offsetMs": 24500,
+      "sha256": "869010329124ee2f4ab4b8d8c700f4e0b6a9fc8950c736b0a8e5a5c8e7789fbd",
+      "rawSha256": "c06f510d6dbb5182e06f72d40699183faa047e06f41d2431c7d9a649b0ca6daa"
+    },
+    {
+      "file": "toggle-050.png",
+      "offsetMs": 25000,
+      "sha256": "3bf330508b2c887d93dfa8231702c0e366f2753fbad311fd0c03762659cbade7",
+      "rawSha256": "ce58c7297ea8a108c87f71e4367c1e4918a822d5625c48e83104cfd723664333"
+    },
+    {
+      "file": "toggle-051.png",
+      "offsetMs": 25500,
+      "sha256": "00a96a7f7f9b1d9ba9b542d79d70b6d943699a2b7e0908c9fb27d077559fb74e",
+      "rawSha256": "b202884ea66d62fcaf19a774177556e384c187ff2aece79936953085f632df7b"
+    },
+    {
+      "file": "toggle-052.png",
+      "offsetMs": 26000,
+      "sha256": "df07bf73e4697f08fba8d6699ce4e010f74b7d5c674a6e06102712f1e8c4c110",
+      "rawSha256": "ad17e064adea221d15ffc2835363d4a78339ccf7a0e559fd987f17c2c2dcf717"
+    },
+    {
+      "file": "toggle-053.png",
+      "offsetMs": 26501,
+      "sha256": "1a0aed270615aaf8a79791c411342573ae07a48345b5d67e9a694df8003eed44",
+      "rawSha256": "6c10d4bbfb51de52b1e3b068816bfb0f565d65d444fc1699a41d46f90b09b6ae"
+    },
+    {
+      "file": "toggle-054.png",
+      "offsetMs": 27001,
+      "sha256": "8323f9bc2e19c96918bb3f534f568e8be20ba04db9a8501b1b05d27ddf0765c7",
+      "rawSha256": "d4a0b597d35f8c78fd4572c4fa9124267a17a4f4c8bd65830ad393808683741f"
+    },
+    {
+      "file": "toggle-055.png",
+      "offsetMs": 27501,
+      "sha256": "e4f3828a03c7914645e1b7bebfc3dc7ef85b38f1f6679b276e326de386f55267",
+      "rawSha256": "4dea2d81c0c1f0bf02ef44e30b831dca5f7c281919c8a2bbe9f2df8a6b0e29b8"
+    },
+    {
+      "file": "toggle-056.png",
+      "offsetMs": 28000,
+      "sha256": "5c877919d0040588428dbc00731481f039ba6ec1d52c8b0ec02f798f099b8308",
+      "rawSha256": "81771e60789df7182a0295643ac3c4cca6d16b37e4ac60eea058ecd40e62440f"
+    },
+    {
+      "file": "toggle-057.png",
+      "offsetMs": 28501,
+      "sha256": "a83bb7b4fce557419deb8a9cce067b2c3e441a340d7cb355312dcd4ac6643b74",
+      "rawSha256": "e3b6c5c497d97f63b647fb868b5d6a454919bb41fc75d865bc6ee7de5c3b08a1"
+    },
+    {
+      "file": "toggle-058.png",
+      "offsetMs": 29001,
+      "sha256": "f271d943ca35e7087fe97d5e8b174550672e9cbd825c4bcc06a056d539d1ff13",
+      "rawSha256": "9dddcd46f47fd19bfaa99a2d5d95887d3733049011160ceb7caa051233773108"
+    },
+    {
+      "file": "toggle-059.png",
+      "offsetMs": 29500,
+      "sha256": "117eb65ad9e0f7fc53c3a3b388d695c9bbb0a611b9ec3c0156b3ec953a995fa5",
+      "rawSha256": "af08486deb8432584ded46bfe02453e23febd60e5498268d29d3a120e2f261c4"
+    },
+    {
+      "file": "toggle-060.png",
+      "offsetMs": 30001,
+      "sha256": "8f00b7cd3e5004756cdefd1ceb7b5483cd1e72c79e49c36710830783437ab51b",
+      "rawSha256": "6b4a2a8cc0492f1f16dfa1a55252e7487a20cc5e6294be05d590920d8a0f2d65"
+    },
+    {
+      "file": "toggle-061.png",
+      "offsetMs": 30500,
+      "sha256": "4b2748838353c718dbfd1d4d4e8832b15e65535bced8be3655da9bcb5b8ea35a",
+      "rawSha256": "aa75fa86d359f7cab993f5746ae2094038bb6323b5c4e427dacac0e1c8b6d905"
+    },
+    {
+      "file": "toggle-062.png",
+      "offsetMs": 31001,
+      "sha256": "4b2748838353c718dbfd1d4d4e8832b15e65535bced8be3655da9bcb5b8ea35a",
+      "rawSha256": "aa75fa86d359f7cab993f5746ae2094038bb6323b5c4e427dacac0e1c8b6d905"
+    },
+    {
+      "file": "toggle-063.png",
+      "offsetMs": 31500,
+      "sha256": "4b2748838353c718dbfd1d4d4e8832b15e65535bced8be3655da9bcb5b8ea35a",
+      "rawSha256": "aa75fa86d359f7cab993f5746ae2094038bb6323b5c4e427dacac0e1c8b6d905"
+    },
+    {
+      "file": "toggle-064.png",
+      "offsetMs": 32000,
+      "sha256": "4b2748838353c718dbfd1d4d4e8832b15e65535bced8be3655da9bcb5b8ea35a",
+      "rawSha256": "aa75fa86d359f7cab993f5746ae2094038bb6323b5c4e427dacac0e1c8b6d905"
+    },
+    {
+      "file": "toggle-065.png",
+      "offsetMs": 32501,
+      "sha256": "4b2748838353c718dbfd1d4d4e8832b15e65535bced8be3655da9bcb5b8ea35a",
+      "rawSha256": "aa75fa86d359f7cab993f5746ae2094038bb6323b5c4e427dacac0e1c8b6d905"
+    },
+    {
+      "file": "toggle-066.png",
+      "offsetMs": 33001,
+      "sha256": "8d5d6512dcc6130aae303ba8f1d1fda34393881c6929b76d6ce062f6b9cfa61c",
+      "rawSha256": "3a51205fa85a3f2bb84621b49e1c5b0cacf4cdbd75c3c4fe746de21985798beb"
+    },
+    {
+      "file": "toggle-067.png",
+      "offsetMs": 33501,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-068.png",
+      "offsetMs": 34000,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-069.png",
+      "offsetMs": 34501,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-070.png",
+      "offsetMs": 35000,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-071.png",
+      "offsetMs": 35501,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-072.png",
+      "offsetMs": 36000,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-073.png",
+      "offsetMs": 36500,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-074.png",
+      "offsetMs": 37000,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-075.png",
+      "offsetMs": 37500,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-076.png",
+      "offsetMs": 38001,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-077.png",
+      "offsetMs": 38501,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-078.png",
+      "offsetMs": 39001,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-079.png",
+      "offsetMs": 39501,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-080.png",
+      "offsetMs": 40001,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-081.png",
+      "offsetMs": 40501,
+      "sha256": "505f70a2b21af149074e97268f062dac64ba9524dd8451e7115166219c23245a",
+      "rawSha256": "6554ff39c1b040716db07cb1587b4b3d73fd51d541301027918db24f5441d5f6"
+    },
+    {
+      "file": "toggle-082.png",
+      "offsetMs": 41000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-083.png",
+      "offsetMs": 41501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-084.png",
+      "offsetMs": 42000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-085.png",
+      "offsetMs": 42500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-086.png",
+      "offsetMs": 43001,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-087.png",
+      "offsetMs": 43500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-088.png",
+      "offsetMs": 44000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-089.png",
+      "offsetMs": 44500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-090.png",
+      "offsetMs": 45001,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-091.png",
+      "offsetMs": 45500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-092.png",
+      "offsetMs": 46000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-093.png",
+      "offsetMs": 46501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-094.png",
+      "offsetMs": 47001,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-095.png",
+      "offsetMs": 47501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-096.png",
+      "offsetMs": 48000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-097.png",
+      "offsetMs": 48501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-098.png",
+      "offsetMs": 49000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-099.png",
+      "offsetMs": 49500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-100.png",
+      "offsetMs": 50000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-101.png",
+      "offsetMs": 50500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-102.png",
+      "offsetMs": 51000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-103.png",
+      "offsetMs": 51501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-104.png",
+      "offsetMs": 52000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-105.png",
+      "offsetMs": 52501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-106.png",
+      "offsetMs": 53000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-107.png",
+      "offsetMs": 53501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-108.png",
+      "offsetMs": 54000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-109.png",
+      "offsetMs": 54500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-110.png",
+      "offsetMs": 55000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-111.png",
+      "offsetMs": 55501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-112.png",
+      "offsetMs": 56001,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-113.png",
+      "offsetMs": 56501,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-114.png",
+      "offsetMs": 57001,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-115.png",
+      "offsetMs": 57500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-116.png",
+      "offsetMs": 58000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-117.png",
+      "offsetMs": 58500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-118.png",
+      "offsetMs": 59000,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    },
+    {
+      "file": "toggle-119.png",
+      "offsetMs": 59500,
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386",
+      "rawSha256": "945a3bff512bfc772353b49f897f393a2bb771878c52fb52fd0859db84415124"
+    }
+  ],
+  "errors": [],
+  "gif": {
+    "file": "toggle.gif",
+    "sha256": "888106c03c910e52d76c35de7025c4e818ec810f45d03d85087340be01f0f86e",
+    "frames": 120,
+    "durationMs": 60000,
+    "intervalMinMs": 499,
+    "intervalMaxMs": 501,
+    "schedulingDriftMs": 0,
+    "conversion": "真实原始帧逐帧按序转换，保持帧数，不裁切、不补帧、不插值；GIF固定时长。"
+  },
+  "retainedFrames": [
+    {
+      "index": 12,
+      "file": "key-toggle-012.png",
+      "sha256": "1ed4e6bceba4c8babfc3705a71f6a53f6071842b0bd9cd96816aa165ba999359"
+    },
+    {
+      "index": 13,
+      "file": "key-toggle-013.png",
+      "sha256": "b88ba97638c2b0e8e5e0f2a77c9f74596839b78f0e9ef29f8be2c0fdf97a6b2a"
+    },
+    {
+      "index": 14,
+      "file": "key-toggle-014.png",
+      "sha256": "ff21c935c94defc3907bd68ef83bfceafe1f5ecb86889858d9f98193e0cc1b6b"
+    },
+    {
+      "index": 20,
+      "file": "key-toggle-020.png",
+      "sha256": "179491ccba1b3db7eb61afd7c1a93fc960543eeb2f55cf7c2dc0bed17520d693"
+    },
+    {
+      "index": 21,
+      "file": "key-toggle-021.png",
+      "sha256": "7a0f1cf0a1efc0bec7b5721ad499ea0d533a1ab54fc95ac4cdee9638afe88919"
+    },
+    {
+      "index": 22,
+      "file": "key-toggle-022.png",
+      "sha256": "782a62c955b37eec43f552b285e91b8658e8fa5d1cec1dcce90d6f50b56a8bdd"
+    },
+    {
+      "index": 25,
+      "file": "key-toggle-025.png",
+      "sha256": "a0980ab838484c35f5f95c5b8cb573ad85f1042be330ef405057c65b8a395433"
+    },
+    {
+      "index": 119,
+      "file": "key-toggle-119.png",
+      "sha256": "e09195c4baa616a9d7d79f01a1dc2efb1e372f9e52a264b6f40974bf527ee386"
+    }
+  ]
+}

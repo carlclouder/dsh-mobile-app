@@ -109,6 +109,10 @@ class ConversationActivity : ComponentActivity() {
 private fun ConversationScreen(viewModel: ConversationViewModel, title: String, onBack: () -> Unit) {
     val messages by viewModel.messages.collectAsState()
     val running by viewModel.running.collectAsState()
+    val thinkingPreview by viewModel.thinkingPreview.collectAsState()
+    val showThinking = running || thinkingPreview.content.isNotBlank()
+    // 预览也是实际尾项，长消息后不能只滚到最后一条历史消息。
+    val listItemCount = messages.size + if (showThinking) 1 else 0
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     // 跳到底部按钮显隐（上翻离开底部时显示；提前声明供 Box 使用）
@@ -164,8 +168,8 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
             ) {
                 // 注：不传 key（默认索引键）——避免消息 key 重复导致 LazyColumn 崩溃（部分流式/回显状态下 key 会重复）
                 items(messages) { msg -> MessageBubble(msg) }
-                if (running) {
-                    item(key = "thinking") { ThinkingIndicator() }
+                if (showThinking) {
+                    item(key = "thinking") { ThinkingIndicator(thinkingPreview) }
                 }
             }
             // 跳到底部按钮：上翻离开底部时显示，点击滚到底部并恢复自动滚动
@@ -185,7 +189,7 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
                         modifier = Modifier
                             .clickable {
                                 followStream = true   // 点跳到底部 = 恢复流式跟随
-                                jumpScope.launch { listState.jumpToEnd(messages.size) }
+                                jumpScope.launch { listState.jumpToEnd(listItemCount) }
                             }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
@@ -256,7 +260,8 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
     // 首滚门控（滚底修复）：等历史加载完成再做首次定位——消息列表是多波异步填充的，
     // 少量实时消息先到时提前滚动会把 scrolledOnce 消耗掉，历史大列表到位后因 isNearBottom=false 永不滚动。
     val historyLoaded by viewModel.historyLoaded.collectAsState()
-    // 轮询刷新（新版 dsh 无 WS 事件流）：本会话运行中期间每 2 秒拉一次 history 对账，
+    // 历史快照仍每 2 秒对账；快速思考预览独立走 session/follow，避免提高历史请求频率。
+    // 本会话运行期间拉取已落定消息，
     // 使"发消息 → 看到回复"的实时性成立；回合结束（running=false）即停止，空闲零开销。
     androidx.compose.runtime.LaunchedEffect(running) {
         while (running) {
@@ -266,23 +271,26 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
     }
     val lastKey = messages.lastOrNull()?.key ?: ""
     val lastTextLen = messages.lastOrNull()?.text?.length ?: 0
-    androidx.compose.runtime.LaunchedEffect(historyLoaded, messages.size, lastKey, lastTextLen, running) {
-        if (messages.isEmpty()) return@LaunchedEffect
+    androidx.compose.runtime.LaunchedEffect(
+        historyLoaded, messages.size, lastKey, lastTextLen, running,
+        thinkingPreview.key, thinkingPreview.content.length,
+    ) {
+        if (listItemCount == 0) return@LaunchedEffect
         if (!scrolledOnce) {
             if (!historyLoaded) return@LaunchedEffect
-            listState.jumpToEnd(messages.size)   // 跳到内容真正底部（长消息也贴底，而非停在消息开头）
+            listState.jumpToEnd(listItemCount)   // 跳到内容真正底部（长消息也贴底，而非停在消息开头）
             scrolledOnce = true
-        } else if (followStream && listState.isNearBottom(messages.size)) {
+        } else if (followStream && listState.isNearBottom(listItemCount)) {
             // 流式跟随：贴真底（followStream 由用户拖动关闭——拖动期间不再拽回，见下方
             // interactionSource 收集器；点「跳到底部」或发送消息时恢复）。不再 animateScrollToItem
             // ——它把最后一条"顶边"对齐视口顶，长消息先被顶上去再补滚回来；流式高频刷新下动画序列
             // 常被打断在中途，视口停在长消息开头。改为：最后一项已在视口内 → 仅补滚剩余高度贴底；
             // 不可见（新增消息）→ 瞬跳+补滚。
             val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            if (lastVisibleIndex >= messages.size - 1) {
+            if (lastVisibleIndex >= listItemCount - 1) {
                 listState.scrollRemainderToBottom()
             } else {
-                listState.jumpToEnd(messages.size)
+                listState.jumpToEnd(listItemCount)
             }
         }
     }
@@ -298,13 +306,12 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
     }
 
     // 跳到底部按钮（类似 WebUI）：上翻离开底部时显示「⬇ 跳到底部」，点它滚到底并恢复自动滚动。
-    // 用 snapshotFlow 监听滚动位置，非底部时置 showJumpToBottom=true，回到底部自动隐藏。
+    // 按实际剩余距离判断，只有一条超长消息时也必须能跳到末尾预览。
     androidx.compose.runtime.LaunchedEffect(listState) {
         androidx.compose.runtime.snapshotFlow {
-            val vi = listState.layoutInfo.visibleItemsInfo
-            (vi.lastOrNull()?.index ?: 0) to messages.size
-        }.collect { (lastVisible, size) ->
-            showJumpToBottom = size > 0 && lastVisible < size - 3
+            listState.layoutInfo.totalItemsCount > 0 && listState.canScrollForward
+        }.collect { canScrollForward ->
+            showJumpToBottom = canScrollForward
         }
     }
 
@@ -939,12 +946,19 @@ private fun MarkdownText(markdown: String, fontSizeSp: Float = 15f) {
 }
 
 @Composable
-private fun ThinkingIndicator() {
+private fun ThinkingIndicator(preview: dev.dshmobile.model.ThinkingPreview) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.Start,
     ) {
-        Text("正在思考…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (preview.content.isNotBlank()) {
+            // 每次模型尝试独立持有展开状态，下一次生成不能沿用上次的展开全文。
+            androidx.compose.runtime.key(preview.key) {
+                CollapsibleThinking(preview.content, streaming = true)
+            }
+        } else {
+            Text("正在思考…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
