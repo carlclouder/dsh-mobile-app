@@ -11,9 +11,19 @@
 | 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
 | 设计文档 | `docs/DESIGN.md`（v1.1.1 评审修正 + §5.5 原生对话页修订 + §2.9 新增需求） |
 | 产物根 | `<repo>\` |
-| 最后更新 | 2026-10-20：交互缺失与消息排队修复完成；150项回归、双变体构建和真实设备GIF验收通过（详见本轮记录） |
-| 当前版本 | `app/version.properties` → versionCode=188 / versionName=0.1.187（**每次 assemble 自动 +1**；本任务已同时生成 Debug 与 Release） |
-| 单测 | 150/150 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+| 最后更新 | 2026-10-21：底部实时思考已接入；175项回归、双变体构建和真实模拟器核心场景通过 |
+| 当前版本 | `app/version.properties` → versionCode=191 / versionName=0.1.190（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
+| 单测 | 175/175 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+
+## 2026-10-21 底部实时思考单行预览（已实现，核心设备场景通过）
+
+- 用户希望 App 也有 WebUI 思考时快速单行滚动的效果；沿用本会话免审批与 GIF 验收要求。
+- 已定位：已有 ThinkingStreamRow 可复用，但新版实时 assistantStream 未接入，底部仍为固定“正在思考…”。
+- 本轮基线 06066db，既有未跟踪 .kotlin/ 不纳入任务。采用页面级 session/follow，只供预览，保留原历史与消息队列路径。
+- 已接入现代 session/follow 的快照与增量，80ms节流发布当前思考末行，复用单行贴尾滚动和点按展开；正文/结束/断线撤掉预览。修正列表尾项计数，通过原请求闸门在有效快照和生成结束时补读历史。
+- 功能编码完成后统一测试和独立审查；175/175通过，Debug/Release构建成功，正式签名通过。版本0.1.190（191）。
+- 真实模拟器确认实时末行变化、展开/收起、上滑留位、跳底、结束后最终回复和历史思考展开。停止、断网、换地址等边界按单测和设备结果分别记录，真机未验证。
+- [方案及13项交付对照](docs/requirements/2026-10-21-底部实时思考单行预览.md)；[场景与GIF证据](test-evidence/thinking-preview-20261021/README.md)。
 
 ## 2026-10-20 交互缺失与消息排队（已修复并完成设备验收）
 

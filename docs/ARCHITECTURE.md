@@ -211,6 +211,8 @@ remote.mux workspace/follow ──> EventStreamService ──> DshRepository.wor
 | `app/src/main/java/dev/dshmobile/service/EventStreamService.kt` | 前台监听服务 |
 | `app/src/main/java/dev/dshmobile/service/NotificationStateMachine.kt` | 通知与交互状态机 |
 | `app/src/main/java/dev/dshmobile/service/DshInteractionStream.kt` | 现代交互流与等待声明 |
+| `app/src/main/java/dev/dshmobile/service/DshThinkingStream.kt` | 当前会话实时思考预览连接 |
+| `app/src/main/java/dev/dshmobile/model/ThinkingPreviewState.kt` | 思考快照与增量的纯状态归约 |
 | `app/src/main/java/dev/dshmobile/model/InteractionTarget.kt` | 活动交互与稍后回答目标 |
 | `app/src/main/java/dev/dshmobile/ui/ConversationViewModel.kt` | 对话页 ViewModel |
 | `app/src/main/java/dev/dshmobile/data/SettingsStore.kt` | 配置持久化 |
@@ -229,3 +231,17 @@ remote.mux workspace/follow ──> EventStreamService ──> DshRepository.wor
 普通消息仍使用原有队列；等待交互时 App 显示原因，不自动替用户选择或重发消息。
 
 实现和验收入口见 [修复方案](requirements/2026-10-20-交互缺失与消息排队修复方案.md)。
+
+## 2026-10-21 底部实时思考预览
+
+当前页面的 ViewModel 持有 DshThinkingStream，在 `/api/remote.mux` 订阅
+`session/follow`，显式请求 `assistantStream=true`。ThinkingPreviewState
+恢复活动尝试的紧凑快照，再顺序消费实时片段；每 80ms 合并发布底部思考预览。
+该数据不进入 sessionEvents 或消息历史，避免重复合并与统计。
+
+底部复用 ThinkingStreamRow 显示最新末行、贴尾滚动与扫光，并可点开全文。
+正文或工具块开始、尝试结束、断连或换地址均清空预览；页面销毁关闭本订阅。
+历史消息仍走既有对账，上滑仍关闭自动跟随。有效快照和生成结束调度原有请求闸门补读，
+覆盖长思考时未观察到 running=true 或断线错过结束的情况；不修改整个回合的运行状态。
+
+方案及验收入口：[底部实时思考单行预览](requirements/2026-10-21-底部实时思考单行预览.md)。

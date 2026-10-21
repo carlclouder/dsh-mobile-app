@@ -11,6 +11,8 @@ import dev.dshmobile.model.ConversationEvent
 import dev.dshmobile.model.InteractionTarget
 import dev.dshmobile.model.QuestionAnswerItem
 import dev.dshmobile.model.RespondReceipt
+import dev.dshmobile.model.ThinkingPreview
+import dev.dshmobile.service.DshThinkingStream
 import dev.dshmobile.service.NotificationStateMachine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,10 +26,11 @@ import kotlin.math.abs
 /**
  * 会话对话页 ViewModel（M5 原生：M5 修订后由 WebView 改为原生 Compose 渲染）。
  *
- * 数据三来源：
+ * 数据来源：
  * 1. 打开时通过 sessionHistory() 拉取历史消息（user/assistant/tool）
  * 2. 会话运行期间每两秒轮询历史并合并新消息
  * 3. repository 会话快照驱动 running（"正在思考…" + 停止按钮显隐）
+ * 4. session/follow 的只读预览流驱动底部实时思考，不参与消息合并
  *
  * 渲染单位：UiMessage（含 role / 正文 / 推理摘要 / 工具调用 / 工具错误标记）。
  */
@@ -136,8 +139,18 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     private val _steeringItemIds = MutableStateFlow<Set<String>>(emptySet())
     val steeringItemIds: StateFlow<Set<String>> = _steeringItemIds.asStateFlow()
 
+    // 页面只读取当前生成的思考，避免实时片段与历史对账重复计数或生成重复气泡。
+    private val thinkingStream = DshThinkingStream(
+        api = DshRepository.apiClient,
+        sessionId = sessionId,
+        log = { message -> Log.w(TAG, message) },
+        onHistoryRefresh = { refreshViaPolling() },
+    )
+    val thinkingPreview: StateFlow<ThinkingPreview> = thinkingStream.preview
+
     init {
         DshRepository.setActiveConversation(sessionId)
+        viewModelScope.launch { thinkingStream.run() }
         viewModelScope.launch { loadHistoryIfIdle() }
         viewModelScope.launch { collectLiveEvents() }
         viewModelScope.launch { loadModels() }
@@ -151,7 +164,11 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         // running 来自 repository 会话快照（host/session-status 推送）
         viewModelScope.launch {
             DshRepository.sessions.collect { snap ->
-                _running.value = snap[sessionId]?.running == true
+                val wasRunning = _running.value
+                val nowRunning = snap[sessionId]?.running == true
+                _running.value = nowRunning
+                // 结束会取消页面轮询，必须补查最终回复；沿用请求闸门防止旧快照并发覆盖。
+                if (wasRunning && !nowRunning) refreshViaPolling()
             }
         }
     }
@@ -526,7 +543,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     }
 
     /**
-     * 轮询刷新（新版 dsh ≥0.1.2-rc.1 移除了 WS 事件流，会话页实时性以周期 history 对账替代）：
+     * 历史轮询对账（旧事件入口停用；实时思考另由 session/follow 提供）：
      * 由会话页在"本会话运行中"期间每 2 秒调用一次；上一轮未结束时合并一次待补查，避免旧快照并发回写。
      */
     fun refreshViaPolling() {
@@ -848,6 +865,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     /** ViewModel 销毁：清理流式节流缓冲（避免残留占位）。 */
     override fun onCleared() {
         DshRepository.clearActiveConversation(sessionId)
+        thinkingStream.close()
         streamTextBuf.setLength(0)
         streamThinkBuf.setLength(0)
         streamPending = false
