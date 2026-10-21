@@ -1,0 +1,92 @@
+{
+  "versionName": "0.1.195",
+  "versionCode": 196,
+  "tests": {
+    "tests": 192,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "apks": {
+    "debug": {
+      "path": "app\\build\\outputs\\apk\\debug\\DSH-Mobile-debug-v0.1.195.apk",
+      "size": 12389185,
+      "sha256": "47542a36ff21b7949932071bf09f17228e628ba21b150330568191d09cb4426f",
+      "signatureVerified": true,
+      "signatureOutput": "Verifies\nVerified using v1 scheme (JAR signing): false\nVerified using v2 scheme (APK Signature Scheme v2): true\nVerified using v3 scheme (APK Signature Scheme v3): false\nVerified using v3.1 scheme (APK Signature Scheme v3.1): false\nVerified using v4 scheme (APK Signature Scheme v4): false\nVerified for SourceStamp: false\nNumber of signers: 1\nSigner #1 certificate DN: C=US, O=Android, CN=Android Debug\nSigner #1 certificate SHA-256 digest: b5ef27969ce990e58749461270993b9bbfdbda4f1225b83b5cd769a8612c6625\nSigner #1 certificate SHA-1 digest: 63aba1852a04a8ec3d05425e6de98163a966bf3c\nSigner #1 certificate MD5 digest: 6f023188e268260afe95f30263897f17\nSigner #1 key algorithm: RSA\nSigner #1 key size (bits): 2048\nSigner #1 public key SHA-256 digest: 5e59076f762cafda365b878a69aac5d2f54002b92fe8939fdc0fe42b7bb46334\nSigner #1 public key SHA-1 digest: d76a8c044885bdc0a47b624df176f8e86ca9cfe6\nSigner #1 public key MD5 digest: cc6554c9c095da748e35c8ed1e3f5f76\n"
+    },
+    "release": {
+      "path": "app\\build\\outputs\\apk\\release\\DSH-Mobile-release-v0.1.195.apk",
+      "size": 2825796,
+      "sha256": "90bd9221cf7ca9babae522158fc7042b855d34f989aea67af90326453e5a0678",
+      "signatureVerified": true,
+      "signatureOutput": "Verifies\nVerified using v1 scheme (JAR signing): false\nVerified using v2 scheme (APK Signature Scheme v2): true\nVerified using v3 scheme (APK Signature Scheme v3): false\nVerified using v3.1 scheme (APK Signature Scheme v3.1): false\nVerified using v4 scheme (APK Signature Scheme v4): false\nVerified for SourceStamp: false\nNumber of signers: 1\nSigner #1 certificate DN: CN=Carl, OU=DSH, O=DSH-Mobile, L=CN, ST=CN, C=CN\nSigner #1 certificate SHA-256 digest: e9aff3994a07a8c4a081ed4b4140b76f7cae5f9e3d6df27ced42172b91fe7957\nSigner #1 certificate SHA-1 digest: 1aa2c52c9e6b2047ad0f8e9d3cceec758866475d\nSigner #1 certificate MD5 digest: 2813036585638e01b94204417f6cee99\nSigner #1 key algorithm: RSA\nSigner #1 key size (bits): 2048\nSigner #1 public key SHA-256 digest: 3f2415204f973f3d1b009607266748551b9bdf8110bb03561b89f2a0777f208d\nSigner #1 public key SHA-1 digest: e2b5100146da3d35fb915d62397d0e9d182e6c40\nSigner #1 public key MD5 digest: 2adcf8d9aff54ed0527cca5de5e15329\n"
+    }
+  },
+  "actualDevice": {
+    "installedVersionName": "0.1.195",
+    "installedVersionCode": 196,
+    "nativeUiChecks": {
+      "round-1-complete": {
+        "visibleOrder": [
+          "用户",
+          "回复"
+        ],
+        "promptCount": 1,
+        "localDuplicate": false,
+        "runningControlsCleared": true
+      },
+      "round-2-complete": {
+        "visibleOrder": [
+          "用户",
+          "回复",
+          "用户",
+          "回复"
+        ],
+        "promptCount": 2,
+        "localDuplicate": false,
+        "runningControlsCleared": true
+      },
+      "reenter": {
+        "visibleOrder": [
+          "用户",
+          "回复",
+          "用户",
+          "回复"
+        ],
+        "promptCount": 2,
+        "localDuplicate": false,
+        "runningControlsCleared": true
+      }
+    },
+    "hostMessageSequence": [
+      {
+        "seq": 9,
+        "type": "user/message",
+        "time": 1792562957413
+      },
+      {
+        "seq": 16,
+        "type": "assistant/message",
+        "time": 1792562959318
+      },
+      {
+        "seq": 23,
+        "type": "user/message",
+        "time": 1792562980914
+      },
+      {
+        "seq": 25,
+        "type": "assistant/message",
+        "time": 1792562981996
+      }
+    ],
+    "distinctRequestIds": [
+      "b3f91926-c9dc-4c82-8815-603bcfd03395",
+      "10ae7d8c-36b8-4794-b979-67f00b874270"
+    ],
+    "clockOffsetSeconds": 300,
+    "clockRestored": true,
+    "currentProcessCrashLogEmpty": true
+  }
+}

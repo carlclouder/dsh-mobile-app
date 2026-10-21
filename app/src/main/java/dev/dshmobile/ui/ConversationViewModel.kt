@@ -59,6 +59,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         val contextLabel: String? = null,  // 仅 Role.CONTEXT：来源名（文件路径/插件名等），null=不显示
         val toolViewTitle: String? = null, // 仅 Role.TOOL 独立结果消息：宿主单行摘要
         val deliveryState: PromptDeliveryState? = null, // 仅本地乐观用户消息
+        val promptRequestId: String? = null, // 用户发送身份：对应宿主 source.rpcId
     )
 
     private val _messages = MutableStateFlow<List<UiMessage>>(emptyList())
@@ -707,20 +708,9 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         return list
     }
 
-    /** 按服务端 key 更新实时项；用户回显只替换正文和时间都匹配的本地发送项。 */
+    /** 按服务端键更新实时项；请求编号优先确认本地回显，缺编号才保留旧时间匹配。 */
     private fun upsertMessage(msg: UiMessage) {
-        val list = _messages.value
-        val idx = list.indexOfFirst { it.key == msg.key }
-        if (idx >= 0) {
-            _messages.value = list.toMutableList().apply { this[idx] = msg }
-            return
-        }
-        val localIdx = findMatchingLocalPromptIndex(list, msg)
-        _messages.value = if (localIdx >= 0) {
-            list.toMutableList().apply { this[localIdx] = msg }
-        } else {
-            list + msg
-        }
+        _messages.value = mergeMessageUpdate(_messages.value, msg)
     }
 
     private fun updatePromptDeliveryState(localKey: String, state: PromptDeliveryState): Boolean {
@@ -799,7 +789,8 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         pendingPromptCount++
         _running.value = true
         val now = System.currentTimeMillis()
-        val localKey = "local-user-${UUID.randomUUID()}"
+        val requestId = UUID.randomUUID().toString()
+        val localKey = "local-user-$requestId"
         // 乐观插入用户消息；UUID 避免同一毫秒内连续发送时本地 key 冲突。
         _messages.value = _messages.value + UiMessage(
             key = localKey,
@@ -807,11 +798,12 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
             text = text,
             timeMillis = now,
             deliveryState = PromptDeliveryState.SENDING,
+            promptRequestId = requestId,
         )
         viewModelScope.launch {
             var failed = false
             try {
-                when (val r = DshRepository.apiClient.sessionPrompt(sessionId, text)) {
+                when (val r = DshRepository.apiClient.sessionPrompt(sessionId, text, requestId)) {
                     is ApiResult.Ok -> {
                         pendingPromptAccepted = true
                         updatePromptDeliveryState(localKey, acceptedPromptState(wasRunning))
@@ -875,7 +867,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     /** Converter：ConversationEvent → 可渲染 UiMessage（非消息类事件返回 null）。 */
     private fun ConversationEvent.toUiMessage(): UiMessage? = when (this) {
         is ConversationEvent.UserMessage ->
-            UiMessage(key, Role.USER, text, timeMillis = timeMillis)
+            UiMessage(key, Role.USER, text, timeMillis = timeMillis, promptRequestId = promptRequestId)
         is ConversationEvent.AssistantMessage ->
             UiMessage(key, Role.ASSISTANT, text, reasoning, toolCalls, timeMillis = timeMillis)
         is ConversationEvent.ToolResult ->
@@ -932,7 +924,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
 
         /**
          * 合并一轮历史快照：当前同键项优先，避免慢返回的旧快照覆盖实时更新；
-         * 仅对时间可信的近期用户回显收敛本地乐观消息。
+         * 优先按请求身份收敛本地消息；旧宿主缺编号才使用保守的正文和时间匹配。
          */
         internal fun mergeHistoryMessages(
             current: List<UiMessage>,
@@ -953,14 +945,36 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                 .map { message ->
                     val existingIndex = merged.indexOfFirst { it.key == message.key }
                     HistoryMergeItem(
-                        message = if (existingIndex >= 0) merged[existingIndex] else message,
+                        message = if (existingIndex >= 0) merged[existingIndex].let { currentMessage ->
+                            currentMessage.copy(promptRequestId = currentMessage.promptRequestId ?: message.promptRequestId)
+                        } else message,
                         existingCurrentIndex = existingIndex.takeIf { it >= 0 },
                     )
                 }
                 .toList()
 
-            val localPromptsByText = merged.withIndex()
+            val matchedExistingIndices = HashSet<Int>()
+            val currentIndexByHistoryIndex = HashMap<Int, Int>()
+            val matchedLocalIndices = HashSet<Int>()
+            val localPromptsByRequest = merged.withIndex()
                 .filter { (_, message) ->
+                    message.role == Role.USER && message.key.startsWith("local-user-") &&
+                        message.promptRequestId != null && message.deliveryState != PromptDeliveryState.REJECTED
+                }
+                .associateBy { it.value.promptRequestId }
+            history.forEachIndexed { historyIndex, item ->
+                if (item.message.role != Role.USER) return@forEachIndexed
+                val requestId = item.message.promptRequestId ?: return@forEachIndexed
+                val local = localPromptsByRequest[requestId] ?: return@forEachIndexed
+                if (!matchedLocalIndices.add(local.index)) return@forEachIndexed
+                // 先按身份消费本地槽位，排队多久、正文变化或手机时钟偏差都不影响确认。
+                currentIndexByHistoryIndex[historyIndex] = local.index
+                item.existingCurrentIndex?.let(matchedExistingIndices::add)
+            }
+
+            val localPromptsByText = merged.withIndex()
+                .filter { (index, message) ->
+                    index !in matchedLocalIndices &&
                     message.role == Role.USER &&
                         message.key.startsWith("local-user-") &&
                         message.timeMillis > 0L &&
@@ -968,15 +982,13 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                 }
                 .groupBy { it.value.text }
             val historyPromptsByText = history.withIndex()
-                .filter { (_, item) ->
-                    item.message.role == Role.USER &&
+                .filter { (index, item) ->
+                    index !in currentIndexByHistoryIndex && item.message.role == Role.USER &&
                         !item.message.key.startsWith("local-user-") &&
                         item.message.timeMillis > 0L
                 }
                 .groupBy { it.value.message.text }
 
-            val matchedExistingIndices = HashSet<Int>()
-            val currentIndexByHistoryIndex = HashMap<Int, Int>()
             historyPromptsByText.forEach { (text, historyPrompts) ->
                 val localPrompts = localPromptsByText[text] ?: return@forEach
                 matchLocalPromptsInOrder(localPrompts, historyPrompts).forEach { (localIndex, historyIndex) ->
@@ -1108,7 +1120,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
             }
         }
 
-        /** 同文消息按双方原顺序对齐：先最大化配对数，再最小化总时间差。 */
+        /** 旧宿主缺编号时，同文消息按原顺序对齐：先最大化配对数，再最小化总时间差。 */
         private fun matchLocalPromptsInOrder(
             localPrompts: List<IndexedValue<UiMessage>>,
             historyPrompts: List<IndexedValue<HistoryMergeItem>>,
@@ -1139,9 +1151,13 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                         bestChoice = ALIGN_SKIP_HISTORY
                     }
 
-                    val localTime = localPrompts[i - 1].value.timeMillis
-                    val serverTime = historyPrompts[j - 1].value.message.timeMillis
-                    if (serverTime >= localTime) {
+                    val local = localPrompts[i - 1].value
+                    val server = historyPrompts[j - 1].value.message
+                    val localTime = local.timeMillis
+                    val serverTime = server.timeMillis
+                    // 两个明确不同的请求不能因“继续”等相同文字而被消掉；缺编号才走旧宿主兜底。
+                    val missingIdentity = local.promptRequestId == null || server.promptRequestId == null
+                    if (missingIdentity && serverTime >= localTime) {
                         val timeDifference = serverTime - localTime
                         if (timeDifference <= PROMPT_ECHO_MATCH_WINDOW_MS) {
                             val matchCount = previousPairCounts[j - 1] + 1
@@ -1193,9 +1209,15 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
             (candidateCount == currentCount && candidateDifference < currentDifference)
 
         private fun findMatchingLocalPromptIndex(current: List<UiMessage>, incoming: UiMessage): Int {
-            if (incoming.role != Role.USER || incoming.key.startsWith("local-user-") || incoming.timeMillis <= 0L) {
-                return -1
+            if (incoming.role != Role.USER || incoming.key.startsWith("local-user-")) return -1
+            incoming.promptRequestId?.let { requestId ->
+                val exact = current.indexOfFirst {
+                    it.role == Role.USER && it.key.startsWith("local-user-") &&
+                        it.promptRequestId == requestId && it.deliveryState != PromptDeliveryState.REJECTED
+                }
+                if (exact >= 0) return exact
             }
+            if (incoming.timeMillis <= 0L) return -1
             var bestIndex = -1
             var bestDistance = Long.MAX_VALUE
             current.forEachIndexed { index, candidate ->
@@ -1203,7 +1225,8 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                     !candidate.key.startsWith("local-user-") ||
                     candidate.text != incoming.text ||
                     candidate.timeMillis <= 0L ||
-                    candidate.deliveryState == PromptDeliveryState.REJECTED
+                    candidate.deliveryState == PromptDeliveryState.REJECTED ||
+                    (candidate.promptRequestId != null && incoming.promptRequestId != null)
                 ) return@forEachIndexed
 
                 val difference = incoming.timeMillis - candidate.timeMillis
@@ -1217,6 +1240,27 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                 }
             }
             return bestIndex
+        }
+
+        /** 旧实时入口也消费已确认的本地副本，不能在同键更新后遗留一条尾部本地消息。 */
+        internal fun mergeMessageUpdate(current: List<UiMessage>, incoming: UiMessage): List<UiMessage> {
+            val existingIndex = current.indexOfFirst { it.key == incoming.key }
+            // 部分旧更新不重复携带编号，先补回已知身份，避免同文兜底误删另一条发送。
+            val identifiedIncoming = incoming.copy(
+                promptRequestId = incoming.promptRequestId ?: current.getOrNull(existingIndex)?.promptRequestId,
+            )
+            val localIndex = findMatchingLocalPromptIndex(current, identifiedIncoming)
+            return when {
+                existingIndex >= 0 -> current.mapIndexedNotNull { index, message ->
+                    when (index) {
+                        existingIndex -> identifiedIncoming
+                        localIndex -> null
+                        else -> message
+                    }
+                }
+                localIndex >= 0 -> current.toMutableList().apply { this[localIndex] = identifiedIncoming }
+                else -> current + identifiedIncoming
+            }
         }
 
         /** 会话参数工厂（Activity 以 intent 的 sessionId 构造）。 */

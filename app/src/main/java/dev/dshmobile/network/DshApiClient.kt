@@ -465,10 +465,14 @@ class DshApiClient(baseUrl: String) {
      * method="session.prompt"；mode="queue"，content 文本块数组，
      * clientTimeZone 取设备 IANA 时区（schema optional）。
      */
-    suspend fun sessionPrompt(sessionId: String, text: String): ApiResult<Unit> {
+    suspend fun sessionPrompt(
+        sessionId: String,
+        text: String,
+        requestId: String = UUID.randomUUID().toString(),
+    ): ApiResult<Unit> {
         val payload = buildJsonObject {
-            // 新版 SessionPromptRequest schema 要求 requestId（幂等标识；缺失即 boundary validation 失败）
-            put("requestId", UUID.randomUUID().toString())
+            // 页面提供编号以关联本地发送与 source.rpcId 回显；旧调用仍由默认参数生成。
+            put("requestId", requestId)
             put("sessionId", sessionId)
             put("mode", "queue")
             put("content", JsonArray(listOf(buildJsonObject {

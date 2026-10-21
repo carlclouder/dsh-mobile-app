@@ -1,0 +1,166 @@
+{
+  "description": "真实历史摘录；省略系统指令注入和内部回放数据。",
+  "asOfSeq": 27,
+  "records": [
+    {
+      "type": "event",
+      "event": {
+        "type": "turn/start",
+        "seq": 5,
+        "time": 1792562957370,
+        "data": {
+          "turn": 1
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "user/message",
+        "seq": 9,
+        "time": 1792562957413,
+        "data": {
+          "turn": null,
+          "step": null,
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Compute 12345 times 6789. Think briefly. Reply in one sentence ending ORDER_CHECK_OK. Do not use tools."
+              }
+            ],
+            "source": {
+              "kind": "user",
+              "rpcId": "b3f91926-c9dc-4c82-8815-603bcfd03395"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "assistant/message",
+        "seq": 16,
+        "time": 1792562959318,
+        "data": {
+          "turn": 1,
+          "step": 1,
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "reasoning",
+                "text": "12345 × 6789. 12345 × 6789 = 12345 × 6800 - 12345 × 11 = 83,946,000 - 135,795 = 83,810,205.\n\nCheck: 12345 × 6789. 12345 × 6000 = 74,070,000. 12345 × 700 = 8,641,500. 12345 × 89 = 1,098,705. Sum: 74,070,000 + 8,641,500 = 82,711,500 + 1,098,705 = 83,810,205. Yes.\n\nOne sentence ending ORDER_CHECK_OK. No tools."
+              },
+              {
+                "type": "text",
+                "text": "12345 × 6789 = 83,810,205, obtained by summing 74,070,000 + 8,641,500 + 1,098,705 from the 6000, 700, and 89 partial products — ORDER_CHECK_OK"
+              }
+            ],
+            "source": {
+              "kind": "model",
+              "provider": "deepseek-official",
+              "model": "deepseek-flash"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "turn/end",
+        "seq": 18,
+        "time": 1792562959319,
+        "data": {
+          "turn": 1,
+          "reason": {
+            "kind": "completed"
+          }
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "turn/start",
+        "seq": 20,
+        "time": 1792562980882,
+        "data": {
+          "turn": 2
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "user/message",
+        "seq": 23,
+        "time": 1792562980914,
+        "data": {
+          "turn": null,
+          "step": null,
+          "message": {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Compute 12345 times 6789. Think briefly. Reply in one sentence ending ORDER_CHECK_OK. Do not use tools."
+              }
+            ],
+            "source": {
+              "kind": "user",
+              "rpcId": "10ae7d8c-36b8-4794-b979-67f00b874270"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "assistant/message",
+        "seq": 25,
+        "time": 1792562981996,
+        "data": {
+          "turn": 2,
+          "step": 1,
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "reasoning",
+                "text": "The user repeats the same request. Answer: 83,810,205. One sentence ending ORDER_CHECK_OK."
+              },
+              {
+                "type": "text",
+                "text": "12345 × 6789 = 83,810,205, which I verified as 74,070,000 + 8,641,500 + 1,098,705 from the 6000, 700, and 89 partial products, so the arithmetic holds — ORDER_CHECK_OK"
+              }
+            ],
+            "source": {
+              "kind": "model",
+              "provider": "deepseek-official",
+              "model": "deepseek-flash"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "event",
+      "event": {
+        "type": "turn/end",
+        "seq": 27,
+        "time": 1792562981997,
+        "data": {
+          "turn": 2,
+          "reason": {
+            "kind": "completed"
+          }
+        }
+      }
+    }
+  ]
+}
