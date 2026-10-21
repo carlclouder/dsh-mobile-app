@@ -1,247 +1,166 @@
-# DSH Mobile —— 系统架构设计方案
+# DSH Mobile 当前架构
 
-> 本文是对 `docs/DESIGN.md`（详细设计）的架构层面总览，聚焦「分层、模块、数据流、关键决策」，
-> 便于快速理解整体结构。详细协议与评审修正溯源见 DESIGN.md。
+> 对齐日期：2026-10-21。本文描述当前源码和运行路径。[DESIGN.md](DESIGN.md) 保留早期设计及迁移过程，不能作为当前部署步骤。功能操作见 [USAGE](../USAGE.md)，验收记录见[实时思考](../test-evidence/thinking-preview-20261021/README.md)及[现代交互](../test-evidence/pending-interactions-20261020/README.md)。
 
-## 1. 系统定位与上下文
+## 1. 系统边界
 
-DSH Mobile 是一个安卓原生客户端，通过 Tailscale 隧道远程访问 PC 上运行的
-DeepSeek Harness（`dsh web`，监听 127.0.0.1:3080）。
+DSH Mobile 是 Kotlin 安卓客户端，界面由 Jetpack Compose 与 Material3 构建。模型、会话和工作区由电脑端 DeepSeek Harness 管理，App 通过 HTTP 与 WebSocket 访问宿主。
 
-```
-手机 App (Android) ── Tailscale(HTTPS) ──> PC 上的 dsh host
-    (原生客户端)                              (免令牌网关插件 :3081 → dsh web :3080)
-```
-
-> **注（2026-09-16）**：dsh ≥0.1.2-rc.1 引入链接令牌认证后，App 不再直连 3080，而是经宿主侧
-> **免令牌网关插件**（`dsh-auth-gateway`，跑在 dsh 进程内的反向代理，自动注入会话 Cookie）：
-> `Tailscale Serve → 127.0.0.1:3081（网关）→ 127.0.0.1:3080（dsh）`。
-> 因此 App 只需配置**裸地址**（`https://<机器名>.<tailnet>.ts.net/`）。
-> 插件设计与验证见 `docs/dsh-auth-gateway-plugin.md`；App 侧协议适配见 `docs/DESIGN.md` §13。
-> 同时，新版移除了 WebSocket 事件流端点，App 的实时性改由**周期轮询**提供（会话列表 3 秒、
-> 会话页运行中 2 秒）。
-
-三大核心诉求：
-1. **会话完成通知**：agent 回合结束等待输入时弹系统通知，APP 退后台/息屏也能收到。
-2. **多会话快速处理**：原生会话列表，按「跑动中 / 等你输入 / 空闲」三态分组。
-3. **移动端排版**：界面按手机屏幕设计。
-
-约束：单机使用（无配对机制）、v1 不改服务端、界面中文、不做模型配置页/文件上传/语音等。
-
-## 2. 技术栈
-
-| 维度 | 选型 |
-|------|------|
-| 语言 | Kotlin（JVM 17） |
-| UI | Jetpack Compose + Material3 |
-| 架构 | 分层 + MVVM + 单向数据流 |
-| 网络 | OkHttp（HTTP RPC 与周期对账；`remote.mux` 承载工作区订阅、现代交互事件和限时等待） |
-| 序列化 | kotlinx-serialization-json |
-| 并发 | kotlinx-coroutines（Flow/StateFlow/SharedFlow） |
-| 持久化 | DataStore<Preferences>（设置）+ SharedPreferences（会话 Cookie，30 天复用） |
-| 平台 | minSdk 26 / targetSdk 35 |
-
-## 3. 架构风格与分层
-
-采用 **分层 + MVVM + 单例状态源（Repository Pattern）**，各层单向依赖：
-
-```
-┌────────────────────────────────────────────────────────┐
-│ UI 层 (Jetpack Compose)                                 │
-│  MainActivity · SessionListScreen · SettingsScreen      │
-│  ConversationActivity · Theme · ThinkingStreamRow       │
-└───────────────────────────┬────────────────────────────┘
-                            │ 订阅 StateFlow / 触发动作
-┌───────────────────────────▼────────────────────────────┐
-│ ViewModel 层                                            │
-│  ConversationViewModel（对话/流式/审批/提问/队列/模型）   │
-│  RespondReceiptPolicy（应答回执三态收敛）                 │
-└───────────────────────────┬────────────────────────────┘
-                            │ 读状态流 / 调 apiClient
-┌───────────────────────────▼────────────────────────────┐
-│ 领域/状态层                                              │
-│  DshRepository（进程级单例状态源）                        │
-│  NotificationStateMachine（纯 Kotlin 通知状态机）        │
-└─────────────┬──────────────────────────┬────────────────┘
-              │ 服务写、UI 读             │ 产出通知指令
-┌─────────────▼──────────────┐  ┌────────▼────────────────┐
-│ 服务层                      │  │ 数据/网络层              │
-│  EventStreamService(前台)   │  │  DshApiClient(OkHttp)   │
-│  SessionEventDeduper(去重)  │  │  SettingsStore(DataStore)│
-│  NotificationHelper         │  │  model/*(协议模型)       │
-│  ApprovalReceiver(广播)     │  │  FrameParser(帧解析)     │
-└────────────────────────────┘  └─────────────────────────┘
+```text
+Android App
+  → Tailscale HTTPS / 已配置的宿主地址
+  → Tailscale Serve 的明确目标
+  → DSH 本体，或经过已配置的认证网关再到 DSH
 ```
 
-依赖规则：**上层只依赖下层**；`EventStreamService` 是唯一「写状态」的服务端，
-UI 只通过 `DshRepository` 的只读流消费状态，实现服务与界面生命周期彻底解耦。
+生产沿用已有部署，DSH 通常使用 `127.0.0.1:3080`；`3081` 是隔离测试端口。网关源码的默认端口不构成生产推荐值，Serve 不能在两端口之间随意切换。部署和认证边界见[远程访问指南](../Tailscale远程访问DSH-安装使用文档.md)与[网关说明](dsh-auth-gateway-plugin.md)。
 
-## 4. 模块划分与职责
+App 不提供模型服务配置、账户配对或文件上传管理。语音输入调用设备识别服务，只回填输入框。
 
-| 模块（包路径） | 职责 |
-|----------------|------|
-| `ui` | Compose 界面 + ViewModel + UI 状态与策略 |
-| `service` | 前台监听服务、通知状态机、事件去重 |
-| `notify` | 系统通知构建与广播接收器（通知内按钮应答） |
-| `network` | DshApiClient：HTTP RPC、现代交互回答及工作区订阅连接 |
-| `data` | SettingsStore：服务器地址 + 通知开关持久化 |
-| `model` | 协议模型、帧解析、信封结构（对照宿主 schema） |
-| 根包 | DshApplication（初始化）、DshRepository（状态源）、MainActivity |
+## 2. 分层与职责
 
-### 4.1 DshRepository（单例状态源）
+| 层与模块 | 职责 |
+| --- | --- |
+| Compose 页面 | 列表、设置、对话、交互卡、队列、折叠内容和滚动行为 |
+| `ConversationViewModel` | 当前会话的历史合并、发送、队列、交互草稿、统计及思考连接生命周期 |
+| `DshRepository` | 进程级客户端、设置与状态流，连接前台服务和页面 |
+| `EventStreamService` | 前台服务，周期对账列表，维持工作区及现代交互连接，执行通知指令 |
+| `NotificationStateMachine` | 纯 Kotlin 状态机，统一会话、待处理交互、通知及回执收敛 |
+| `DshInteractionStream` | 现代交互订阅、活动客户端身份、限时等待声明、重连与失效保护 |
+| `DshThinkingStream` | 当前页面独立会话流，恢复思考快照、接收增量并调度补读历史 |
+| `ThinkingPreviewState` | 校验修订号与原始片段序号，归约活动尝试的思考文本 |
+| `DshApiClient` / `DshAuthSession` | 请求封装、协议兼容、地址世代、套接字登记及 Cookie 认证 |
+| `SettingsStore` | 服务器地址、通知开关和外观偏好持久化 |
 
-进程级单例，是**服务与 UI 之间的唯一数据总线**：
+服务与页面通过 `StateFlow` 和 `SharedFlow` 交换状态及事件，避免直接持有对方界面对象。通知判断与网络传输分开；思考预览与已落定消息分开，防止预览被重复并入历史和统计。
 
-- 持有全局唯一的 `apiClient` 与 `settingsStore`；
-- 会话快照 / 工作区 / 连接状态 / 排队消息 / 审批 / 提问 / 统计等，全部以
-  `StateFlow`（快照型）或 `SharedFlow`（事件型）暴露；
-- **服务侧写入、UI 只读**：`publish*` 方法仅供 `EventStreamService` 调用；
-- 事件型通道（`sessionEvents`、`localCancelEvents`、`streamKickRequests` 等）用
-  `SharedFlow` 带缓冲容量兜底瞬时高峰。
+`NotificationStateMachine.sessionSnapshot()`复制Map内的每个`SessionState`再发布。只复制Map会共享内部可变值，使新旧快照相等、状态流漏发运行结束；当前实现隔离发布值，保留归档过滤和顺序，通知判定仍基于宿主真实运行状态。对应实际发送、完成清理与重进证据见[顺序修复验收](../test-evidence/message-order-20261021/README.md)。
 
-### 4.2 DshApiClient（通信层）
+## 3. 通信方式
 
-宿主通信的**唯一入口**，当前运行路径使用两类通道：
+当前运行路径同时使用周期 HTTP 对账和 `/api/remote.mux` WebSocket。旧 `/api/events.host`、`/api/events.mux` 工厂与兼容解析仍保留在源码中，但不作为当前会话推送入口。
 
-- **HTTP 请求**：`POST /api/<method>`，JSON-RPC 风格信封
-  `{type:"client-request", rpcId, method, payload}`，响应折叠为三分支
-  `Ok / BizError / NetError`；`session.list` 和 `session.history` 由调用方按周期查询。
-- **工作区订阅**：新版宿主通过 `/api/remote.mux` 提供 `workspace/follow` 流，当前只用它接收工作区与归档集合更新。旧版会话事件 WebSocket 工厂仍在源码中，但新版运行路径不启动它们。
+### HTTP 请求
 
-关键健壮性设计：
-- 换址用「世代计数」：更新地址即自增世代并**关闭存量工作区流**，防止旧流与新调用分裂到两台服务器；
-- 工作区订阅流支持心跳、断线退避重连和网络恢复后立即重连；
-- 应答走短超时专用客户端（预算 <10s 广播 ANR 窗口）；
-- 模拟器调试 Host 改写拦截器仅存在于 debug 构建（`BuildConfig.DEBUG`）。
+`DshApiClient.call()` 优先使用现代端点和 `payload.args` 参数包装；列表使用 `args._request`，历史及常规操作使用各自的 `args.request`。收到端点不存在时，尝试旧点号方法及旧参数格式。历史映射为 `session/page`，并读取有效游标作为 `throughSeq`，不能无限制向未来查询。
 
-### 4.3 EventStreamService（前台服务）
+现代原始接口使用 `callModernRaw()`，保留 `void`、`null`、布尔值等响应，不强制要求对象。请求结果区分成功、业务错误与网络错误。
 
-后台同步服务，保证退后台/息屏仍周期对账会话状态，并维持工作区订阅：
+| 数据 | 当前路径 |
+| --- | --- |
+| 会话列表、运行状态 | 前台服务约每 3 秒调用 `session.list`，再由状态机对账 |
+| 已落定消息、工具、统计 | 打开会话时读取历史；运行中约每 2 秒对账 |
+| 发送、停止、队列、重命名、分叉、归档 | 页面调用对应 HTTP 方法，按宿主响应与后续状态收敛 |
+| 模型目录 | 仍调用 `session.models` / `session/models`，尚未适配 `session/modelCatalog` |
 
-- `specialUse` 前台服务类型（规避 Android 15 dataSync 的 6h 累积限制），
-  配套 `onTimeout` 优雅降级兜底；
-- 每 3 秒调用一次 `session.list` 并运行 **baseline 对账**，失败后按退避间隔重试；
-- 新版宿主通过一个独立工作区流更新工作区与归档集合，该流断开后退避重连；
-- `ConnectivityManager` 监听网络切换立即重连；
-- 旧版会话事件 WebSocket 不在当前启动路径中，当前对话内容由会话页调用历史接口读取。
+模型目录是当前兼容限制：2026-10-21 的宿主检查中，旧入口 404，新目录入口 200。保留选择界面不代表新宿主的模型切换已完整可用。
 
-### 4.4 NotificationStateMachine（纯状态机）
+### 工作区订阅
 
-M3 核心，**纯 Kotlin、无 Android 依赖、时钟可注入**，可 JVM 全分支确定性单测：
+`EventStreamService` 通过 `remote.mux` 的 `workspace/follow` 接收工作区与归档集合。该连接独立退避重连，归档集合用于列表和通知过滤。
 
-- 消费 baseline + host/mux 帧流 + 本地取消事件；
-- 产出**通知指令流**（`Show/Cancel` × 回合完成/审批/提问），由服务执行真正的系统通知；
-- 规则覆盖：回合完成仅 `prev==running:true → running:false` 触发、本地取消 3s 抑制窗、
-  subagent 会话不通知、审批/提问按 id 键控去重等。
+### 现代交互
 
-### 4.5 ConversationViewModel（对话页）
+```text
+remote.mux 的 $events
+  → DshInteractionStream
+  → NotificationStateMachine
+  → Repository 中的审批/提问状态
+  → 页面交互卡 + 系统通知
 
-对话页当前消息与状态来自以下路径：
-
-1. 打开时 `sessionHistory()` 拉历史（user/assistant/tool）；
-2. 会话运行期间每 2 秒调用一次历史接口，对账新消息；
-3. repository 的 `session.list` 快照驱动 `running` 状态。
-
-流式聚合与节流代码仍保留，供实时事件入口复用；新版宿主关闭会话事件流时，对话页主要靠两秒一次的历史对账更新。
-
-## 5. 核心数据流
-
-### 5.1 会话列表与通知
-
-```
-session.list（每 3 秒） ──> EventStreamService ──> NotificationStateMachine
-        │                                                │ 产出通知指令
-        │ 写快照                                          ▼
-        └────────────> DshRepository.sessions      NotificationHelper(系统通知)
-                          │ 只读
-                          ▼
-                    SessionListScreen（三态分组）
-
-remote.mux workspace/follow ──> EventStreamService ──> DshRepository.workspaces
+活动交互回答 → $events/result
+限时问题声明 → userQuestions/attachWait
+稍后回答状态 → userQuestions 与 inbox 投影
+稍后回答提交 → userQuestions/answer
 ```
 
-### 5.2 对话页实时渲染
+活动交互与稍后回答使用明确的 `InteractionTarget`，不能混用回答地址。等待声明记录剩余时间，成功回答后释放本地等待；重连恢复未答交互。投影、回执和活动客户端共同防止旧卡片重复提交。旧宿主回答仍保留 `/api/respond` 兼容路径。
 
+页面保存按题草稿，区分提交中、同步中及已排队。回答成功后显式通知服务收敛本地卡片，不能依赖提交方一定收到宿主取消广播。普通消息队列与交互答案分开；等待交互时显示原因，不自动替用户选择。
+
+详细方案见[交互缺失与消息排队修复](requirements/2026-10-20-交互缺失与消息排队修复方案.md)。
+
+### 当前会话实时思考
+
+```text
+remote.mux 的 session/follow（assistantStream=true）
+  → ThinkingPreviewState（快照 + 连续增量）
+  → 每 80ms 合并发布思考预览
+  → 当前页面底部单行末行 / 展开全文
+
+有效快照、有效生成结束
+  → ViewModel 原有历史请求闸门
+  → 合并待补查、串行读取历史
+  → 更新已落定回复
 ```
-进入会话时 sessionHistory() ──> ConversationViewModel._messages
-会话运行期间每 2 秒 sessionHistory() ──> 按服务端 key 与近期本地发送项合并
-（保留已到达的当前项；历史回显确认本地发送后原位替换，流式占位不从历史重放）
+
+快照恢复活动尝试及紧凑段；紧凑段按成员数量计数，增量仍校验原始片段序号与修订号。序列中断或格式异常时清空连接状态，重新获取快照，避免把旧文本接到新生成上。
+
+正文或工具块开始、尝试结束、断线、换址时清空活动预览，页面销毁只关闭自己的思考订阅。生成结束不是整个回合结束，不修改 `running`。
+
+有效快照及生成结束均调度原有历史补查，覆盖列表请求超时而未观察到 `running=true`、或重连错过结束的情况。回调只调度协程，不在套接字锁内执行网络请求。
+
+思考预览不进入 `sessionEvents` 或消息历史。正文仍主要来自历史对账，不能据此宣称整条回复逐字流式显示。详细设计见[底部实时思考单行预览](requirements/2026-10-21-底部实时思考单行预览.md)。
+
+## 4. 状态、滚动与通知
+
+会话列表按运行状态与活动时间分组，组内按标题排序。空白和子代理会话隐藏；本机成功发送消息后记录本地事实，使该会话立即豁免空白隐藏。尚未确认的本地发送项继续保留。
+
+发送与历史回显通过同一个 UUID 关联：
+
+```text
+ViewModel 发送前生成 UUID
+  → 本地 UiMessage.promptRequestId 与 local-user-<UUID> 键
+  → sessionPrompt(..., requestId) / session/prompt.requestId
+  → 宿主 user/message.source.rpcId
+  → ConversationEvent.UserMessage.promptRequestId
+  → UiMessage.promptRequestId
+  → 历史合并或实时更新确认本地发送并清除本地副本
 ```
 
-### 5.3 用户操作
+对于未被明确拒绝的本地消息，同编号确认不依赖正文和时间；消息按宿主历史顺序定位，使提问位于对应回复之前。若当前列表已存在服务端键，同时又残留同编号本地项，更新仍清除本地副本，不能只更新服务端项后返回。
 
-```
-发消息/停止/插话/审批 ──> ViewModel ──> DshApiClient ──> POST /api/<method>
-                                                     └──> POST /api/respond（审批/提问）
-宿主状态变化 ──> session.list 周期对账 ──> 状态机 + 状态源 ──> UI 收敛（以宿主快照为准）
-```
+两条非空请求编号不同的消息禁止退回文字匹配，避免重复发送“继续”等短句时误合并。只有至少一端缺少编号时，才保留旧的同文顺序匹配，要求双方有时间、服务端不早于本地且相差不超过 120 秒；明确拒绝的本地项不参与匹配。因此本次修复不能视为旧宿主时钟偏差已解决，也不使用跨设备时间对全列表排序。
 
-关键原则：**UI 以宿主回显为最终事实源**，本地只做轻量乐观更新（用户消息、插话禁用标记），
-失败时回滚并提示，避免「静默失败」。
+历史请求通过 `HistoryRequestGate` 串行执行。请求进行中再次触发时合并一次待补查，避免并发旧快照回写。历史重放不重复添加流式占位内容。
 
-## 6. 关键设计决策
+对话列表接近底部时跟随更新；拖动查看历史后停止跟随，跳底或发送消息恢复。思考区域可展开，长行贴尾，快速预览不会强制抢回用户正在查看的旧历史。
 
-1. **单例状态源解耦**：服务与 UI 不直接通信，全部经 `DshRepository` 的 Flow 中转，
-   解决后台服务与前台界面的生命周期耦合。
-2. **状态机纯化**：通知判定逻辑与 Android 分离，时钟可注入 → 全分支确定性单测。
-3. **无本地数据库**：会话快照为易失内存态，重启后由 `session.list` baseline 重建；
-   仅 DataStore 存服务器地址 + 三个通知开关，大幅降低复杂度与一致性风险。
-4. **同步方式**：会话状态与历史内容通过 HTTP 周期对账更新；工作区通过 `remote.mux` 的 `workspace/follow` 流更新。换址时关闭工作区流，避免旧流与新请求分裂到两台服务器。
-5. **容错优先**：退避重连、seq 去重、id 键控去重、三态回执收敛、错误码可见化，
-   全程无「静默失败」路径。
-6. **私密配置外置**：服务器地址/受信权威经 `BuildConfig` 注入（`personal.properties`，
-   git 忽略），源码不含私人域名，可安全开源。
+底部统计、任务、交互和队列区域限制最大高度并可滚动，避免多题多选项挤掉消息列表和输入框。
 
-## 7. 非功能特性
+通知状态机消费宿主快照、现代交互与本地事件，产出显示或撤销指令。回合完成依赖观测到运行状态由真变假；未观测到的过渡不能保证触发通知。子代理和归档会话过滤、交互键控去重及本地取消抑制用于减少重复或误报。实际送达仍依赖 Android 权限、后台策略和网络。
 
-| 维度 | 措施 |
-|------|------|
-| 可靠性 | 周期 baseline 对账、工作区流退避重连、网络切换即时恢复 |
-| 性能 | 流式节流合批、大列表解码走 IO 线程、独立 WS 调度器 |
-| 安全性 | TLS 系统信任链零配置、私密域名外置、release R8 混淆 |
-| 可测试性 | 纯状态机可 JVM 单测、MockWebServer 网络单测、纯函数抽离 |
-| 可维护性 | 单一职责分包、协议对照 schema 源码钉死、注释标注设计溯源 |
+## 5. 认证与资源生命周期
 
-## 8. 关键文件索引
+`DshAuthSession` 从输入地址提取令牌，换取并保存 Cookie；令牌消费后不能无限重试。凭证与访问地址有关，换址不能假设旧凭证通用。
+
+`DshApiClient` 使用地址世代标记并关闭登记的旧套接字。工作区、交互和思考回调核对当前世代，避免旧服务器的结果污染新地址；交互回答还核对当前活动客户端。思考订阅由页面关闭，前台服务连接不随页面收起而一并关闭。
+
+后台使用前台服务维持同步，网络变化触发恢复。订阅分别采用退避重连，不能将某一条流连接成功视为全部通道正常。
+
+私人默认地址放在未入库的 `app/personal.properties`。发布签名读取 `keystore/keystore.properties`；缺失时不自动使用 Debug 签名，具体构建步骤见 [README](../README.md#本地构建)。
+
+## 6. 渲染与技术栈
+
+界面采用 Compose；Markdown 使用 `compose-markdown 0.7.2`，其 Android TextView 渲染支持表格、图片、链接、代码和列表。正文关闭文本选择以允许滚动，思考等 Compose 文本可选中。因此不能统一承诺所有气泡长按复制。Mermaid 不渲染为图形。
+
+网络使用 OkHttp 4.12.0，JSON 使用 kotlinx-serialization，异步状态使用协程与 Flow。设置持久化使用 DataStore，认证 Cookie 使用 SharedPreferences；会话历史不建立本地数据库，以宿主为权威源。
+
+## 7. 关键源码入口
 
 | 文件 | 作用 |
-|------|------|
-| `app/src/main/java/dev/dshmobile/DshRepository.kt` | 单例状态源 |
-| `app/src/main/java/dev/dshmobile/network/DshApiClient.kt` | 通信客户端 |
-| `app/src/main/java/dev/dshmobile/service/EventStreamService.kt` | 前台监听服务 |
-| `app/src/main/java/dev/dshmobile/service/NotificationStateMachine.kt` | 通知与交互状态机 |
-| `app/src/main/java/dev/dshmobile/service/DshInteractionStream.kt` | 现代交互流与等待声明 |
-| `app/src/main/java/dev/dshmobile/service/DshThinkingStream.kt` | 当前会话实时思考预览连接 |
-| `app/src/main/java/dev/dshmobile/model/ThinkingPreviewState.kt` | 思考快照与增量的纯状态归约 |
-| `app/src/main/java/dev/dshmobile/model/InteractionTarget.kt` | 活动交互与稍后回答目标 |
-| `app/src/main/java/dev/dshmobile/ui/ConversationViewModel.kt` | 对话页 ViewModel |
-| `app/src/main/java/dev/dshmobile/data/SettingsStore.kt` | 配置持久化 |
-| `app/src/main/java/dev/dshmobile/DshApplication.kt` | 入口与通知通道初始化 |
-| `app/src/test/java/dev/dshmobile/` | 单元测试（状态机/解析/去重/流式） |
-
-## 2026-10-20 现代交互通道
-
-会话列表与历史继续周期轮询，工作区继续订阅 `workspace/follow`。
-审批和提问由 `DshInteractionStream` 订阅 `/api/remote.mux` 上的 `$events`，
-通过 `$events/result` 回答；限时提问通过 `userQuestions/attachWait` 取得剩余等待时间。
-超时后的问题由 `userQuestions` 与 `inbox` 投影恢复，通过 `userQuestions/answer` 回答。
-
-状态机统一管理卡片、通知、断线重放和服务器世代。页面保存按题草稿并禁止重复提交。
-提交方不保证收到宿主取消事件，因此成功回执会通知服务按完整地址收敛本地状态。
-普通消息仍使用原有队列；等待交互时 App 显示原因，不自动替用户选择或重发消息。
-
-实现和验收入口见 [修复方案](requirements/2026-10-20-交互缺失与消息排队修复方案.md)。
-
-## 2026-10-21 底部实时思考预览
-
-当前页面的 ViewModel 持有 DshThinkingStream，在 `/api/remote.mux` 订阅
-`session/follow`，显式请求 `assistantStream=true`。ThinkingPreviewState
-恢复活动尝试的紧凑快照，再顺序消费实时片段；每 80ms 合并发布底部思考预览。
-该数据不进入 sessionEvents 或消息历史，避免重复合并与统计。
-
-底部复用 ThinkingStreamRow 显示最新末行、贴尾滚动与扫光，并可点开全文。
-正文或工具块开始、尝试结束、断连或换地址均清空预览；页面销毁关闭本订阅。
-历史消息仍走既有对账，上滑仍关闭自动跟随。有效快照和生成结束调度原有请求闸门补读，
-覆盖长思考时未观察到 running=true 或断线错过结束的情况；不修改整个回合的运行状态。
-
-方案及验收入口：[底部实时思考单行预览](requirements/2026-10-21-底部实时思考单行预览.md)。
+| --- | --- |
+| [DshRepository.kt](../app/src/main/java/dev/dshmobile/DshRepository.kt) | 进程级状态与客户端 |
+| [DshApiClient.kt](../app/src/main/java/dev/dshmobile/network/DshApiClient.kt) | 请求、协议兼容与套接字登记 |
+| [DshAuthSession.kt](../app/src/main/java/dev/dshmobile/network/DshAuthSession.kt) | 令牌交换和 Cookie |
+| [EventStreamService.kt](../app/src/main/java/dev/dshmobile/service/EventStreamService.kt) | 周期同步与前台服务 |
+| [NotificationStateMachine.kt](../app/src/main/java/dev/dshmobile/service/NotificationStateMachine.kt) | 通知与交互状态 |
+| [DshInteractionStream.kt](../app/src/main/java/dev/dshmobile/service/DshInteractionStream.kt) | 现代交互、等待和恢复 |
+| [DshThinkingStream.kt](../app/src/main/java/dev/dshmobile/service/DshThinkingStream.kt) | 当前会话思考连接 |
+| [ThinkingPreviewState.kt](../app/src/main/java/dev/dshmobile/model/ThinkingPreviewState.kt) | 思考流纯状态归约 |
+| [InteractionTarget.kt](../app/src/main/java/dev/dshmobile/model/InteractionTarget.kt) | 回答目标类型 |
+| [ConversationViewModel.kt](../app/src/main/java/dev/dshmobile/ui/ConversationViewModel.kt) | 历史合并与操作 |
+| [ConversationActivity.kt](../app/src/main/java/dev/dshmobile/ui/ConversationActivity.kt) | 对话渲染与滚动 |
+| [SessionListScreen.kt](../app/src/main/java/dev/dshmobile/ui/SessionListScreen.kt) | 分组、过滤与列表操作 |
+| [SettingsStore.kt](../app/src/main/java/dev/dshmobile/data/SettingsStore.kt) | 设置持久化 |
+| [单元测试目录](../app/src/test/java/dev/dshmobile/) | 真实 Kotlin 函数与网络路径测试 |
