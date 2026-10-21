@@ -6,6 +6,12 @@ import dev.dshmobile.model.QuestionItem
 import dev.dshmobile.model.SessionSummary
 import dev.dshmobile.service.NotificationStateMachine
 import dev.dshmobile.service.NotificationStateMachine.Command
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.test.Test
@@ -20,6 +26,43 @@ import kotlin.test.assertTrue
  * 时钟注入 → 全部分支确定性验证（手写对照组：每个用例列出预期指令序列）。
  */
 class TurnNotificationStateMachineTest {
+
+    @Test
+    fun `baseline和状态帧结束后旧快照不变且状态流实际发射空闲`() = runBlocking {
+        for (useBaseline in listOf(true, false)) {
+            val stateMachine = NotificationStateMachine()
+            stateMachine.onBaseline(listOf(summary("s1", running = true)))
+            val before = stateMachine.sessionSnapshot()
+            val flow = MutableStateFlow(before)
+            val emissions = mutableListOf<Boolean>()
+            val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+                flow.collect { emissions.add(it.getValue("s1").running) }
+            }
+            try {
+                if (useBaseline) stateMachine.onBaseline(listOf(summary("s1", running = false)))
+                else stateMachine.onHostFrame(statusFrame("s1", running = false))
+                assertTrue(before.getValue("s1").running, "旧快照必须仍表示发布时的运行状态")
+                flow.value = stateMachine.sessionSnapshot()
+                yield()
+                assertEquals(listOf(true, false), emissions, "界面必须实际收到结束状态")
+            } finally {
+                collector.cancelAndJoin()
+            }
+        }
+    }
+
+    @Test
+    fun `外部修改已发布快照不会污染通知状态机`() {
+        val stateMachine = NotificationStateMachine()
+        stateMachine.onBaseline(listOf(summary("s1", running = true, title = "原始标题")))
+        val exposed = stateMachine.sessionSnapshot().getValue("s1")
+        exposed.running = false
+        exposed.title = "外部修改"
+        val current = stateMachine.sessionSnapshot().getValue("s1")
+        assertTrue(current.running)
+        assertEquals("原始标题", current.title)
+        assertTrue(stateMachine.onHostFrame(statusFrame("s1", false)).any { it is Command.ShowTurnComplete })
+    }
 
     /** 可手动推进的假时钟。 */
     private class FakeClock(var now: Long = 1_000_000L) {

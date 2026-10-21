@@ -90,6 +90,21 @@ class DshApiClientTest {
         assertTrue(sentBody.containsKey("payload"))
     }
 
+    @Test
+    fun `发送请求使用页面提供的同一个稳定编号`() = runTest {
+        server.enqueue(MockResponse().setBody(
+            """{"type":"server-response","rpcId":"send-ack","result":{"ok":true,"value":{"accepted":true}}}""",
+        ))
+        assertIs<ApiResult.Ok<Unit>>(client.sessionPrompt("order-session", "检查顺序", "same-request-id"))
+        val request = server.takeRequest()
+        assertEquals("/api/session/prompt", request.path)
+        val body = kotlinx.serialization.json.Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+        val prompt = body.getValue("payload").jsonObject.getValue("args").jsonObject.getValue("request").jsonObject
+        assertEquals("same-request-id", prompt.getValue("requestId").jsonPrimitive.content)
+        assertEquals("order-session", prompt.getValue("sessionId").jsonPrimitive.content)
+        assertEquals("queue", prompt.getValue("mode").jsonPrimitive.content)
+    }
+
     // -------------------------------------------------------------------
     // 错误分支
     // -------------------------------------------------------------------

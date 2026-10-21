@@ -488,7 +488,11 @@ class NotificationStateMachine(
 
     fun sessionSnapshot(): Map<String, SessionState> {
         // 需求 2.9.3：归档会话不进入展示快照（列表隐藏、不提示）
-        return LinkedHashMap(sessions).apply { keys.removeAll(archivedSessionIds) }
+        return LinkedHashMap(sessions).apply {
+            keys.removeAll(archivedSessionIds)
+            // 状态流按相等性去重；发布值不能与内部可变对象共享，否则结束变化会被吞掉。
+            entries.forEach { entry -> entry.setValue(entry.value.copy()) }
+        }
     }
 
     fun pendingApproval(id: String): ApprovalInfo? = pendingApprovals[id]

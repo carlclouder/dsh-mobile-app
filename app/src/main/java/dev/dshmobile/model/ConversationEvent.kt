@@ -28,6 +28,7 @@ sealed interface ConversationEvent {
         override val key: String,
         val text: String,
         val timeMillis: Long = 0,
+        val promptRequestId: String? = null,
     ) : ConversationEvent
 
     /** 助手消息：主文本 + 推理摘要 + 工具调用列表。 */
@@ -137,7 +138,10 @@ sealed interface ConversationEvent {
                         ?: ((data["message"] as? JsonObject)?.get("source") as? JsonObject)
                     val sourceKind = (source?.get("kind") as? JsonPrimitive)?.contentOrNull
                     if (source == null || sourceKind == "user") {
-                        UserMessage(key, extractText(data), timeMillis)
+                        // 宿主将发送请求编号写入 source.rpcId，不能用手机时间猜测是否为同一条回显。
+                        val requestId = (source?.get("rpcId") as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+                            ?.takeIf { it.isNotBlank() }
+                        UserMessage(key, extractText(data), timeMillis, requestId)
                     } else {
                         ContextInjection(
                             key = key,

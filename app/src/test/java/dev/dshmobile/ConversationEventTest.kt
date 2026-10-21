@@ -26,6 +26,24 @@ class ConversationEventTest {
         val u = assertIs<ConversationEvent.UserMessage>(ev)
         assertEquals("a9ce2d95-afcd-49d2-91ff-a3fff7840cff", u.key)
         assertEquals("暂停先写 进度文件", u.text)
+        assertEquals("06734424-53ab-4b4b-ba0d-d381373531f7", u.promptRequestId)
+    }
+
+    @Test
+    fun `嵌套用户来源中的请求编号得到保留`() {
+        val event = parse("user/message", 10, """
+            {"message":{"content":[{"type":"text","text":"继续"}],
+             "source":{"kind":"user","rpcId":"nested-request"}},"id":"nested-user"}
+        """.trimIndent())
+        assertEquals("nested-request", assertIs<ConversationEvent.UserMessage>(event).promptRequestId)
+    }
+
+    @Test
+    fun `缺失空白或非字符串请求编号不会成为用户消息身份`() {
+        for (source in listOf("""{"kind":"user"}""", """{"kind":"user","rpcId":" "}""", """{"kind":"user","rpcId":12}""")) {
+            val event = parse("user/message", 11, """{"content":[{"type":"text","text":"旧宿主"}],"source":$source}""")
+            assertEquals(null, assertIs<ConversationEvent.UserMessage>(event).promptRequestId)
+        }
     }
 
     @Test

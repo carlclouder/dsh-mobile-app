@@ -1,0 +1,678 @@
+{
+  "device": "emulator-5554",
+  "package": "dev.dshmobile",
+  "version": "0.1.195 (196)",
+  "intervalMs": 1200,
+  "frames": [
+    {
+      "index": 0,
+      "scheduledMs": 0,
+      "captureMs": 0,
+      "sha256": "232b864b064364f28ec76cdbbbd31818cac4e24504be2c861d1e7a8f6346ab88",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 1,
+      "scheduledMs": 1200,
+      "captureMs": 1201,
+      "sha256": "232b864b064364f28ec76cdbbbd31818cac4e24504be2c861d1e7a8f6346ab88",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 2,
+      "scheduledMs": 2400,
+      "captureMs": 2401,
+      "sha256": "232b864b064364f28ec76cdbbbd31818cac4e24504be2c861d1e7a8f6346ab88",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 3,
+      "scheduledMs": 3600,
+      "captureMs": 3601,
+      "sha256": "232b864b064364f28ec76cdbbbd31818cac4e24504be2c861d1e7a8f6346ab88",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 4,
+      "scheduledMs": 4800,
+      "captureMs": 4801,
+      "sha256": "c4eae9c43879ba3fb64807a40200fa1417643ac722a83cdd26a6e303d3aa4b56",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 5,
+      "scheduledMs": 6000,
+      "captureMs": 6000,
+      "sha256": "49278ca8da52377dc5723c2bfdff73ba48c48ceaa5fd70657b901449f199deaa",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 6,
+      "scheduledMs": 7200,
+      "captureMs": 7200,
+      "sha256": "74a8ef7079bfdaca621d996c07d8476e421b04d35f0a81f982047ec0089c02e8",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 7,
+      "scheduledMs": 8400,
+      "captureMs": 8400,
+      "sha256": "c0f078c71d1b8527b8024090c55abb9d988bd48d5e05b9df083f3d28c6fe4cda",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 8,
+      "scheduledMs": 9600,
+      "captureMs": 9601,
+      "sha256": "1f567378d7a17491c4e19137dc91a0439130840f19e379506ec21e5573c825be",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 9,
+      "scheduledMs": 10800,
+      "captureMs": 10800,
+      "sha256": "6d46d6b34c763974454322fb03d534b8a4ac4cc4452492a0fa304b7e64669eea",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 10,
+      "scheduledMs": 12000,
+      "captureMs": 12001,
+      "sha256": "6d46d6b34c763974454322fb03d534b8a4ac4cc4452492a0fa304b7e64669eea",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 11,
+      "scheduledMs": 13200,
+      "captureMs": 13200,
+      "sha256": "2bc5988048e94becb6641328d254ba52b2ace1e4bba2a5971faf7f26dfe9a2be",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 12,
+      "scheduledMs": 14400,
+      "captureMs": 14401,
+      "sha256": "41e62a59ac2e9f71016c6e184bd5fe8e78634be5f789b596352681f515d54fa5",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 13,
+      "scheduledMs": 15600,
+      "captureMs": 15601,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 14,
+      "scheduledMs": 16800,
+      "captureMs": 16800,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 15,
+      "scheduledMs": 18000,
+      "captureMs": 18000,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 16,
+      "scheduledMs": 19200,
+      "captureMs": 19201,
+      "sha256": "ab2c254eebc4af7b43a448f6f72dac06c8688902e541370e6c675407b0cb9ec4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 17,
+      "scheduledMs": 20400,
+      "captureMs": 20401,
+      "sha256": "ab2c254eebc4af7b43a448f6f72dac06c8688902e541370e6c675407b0cb9ec4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 18,
+      "scheduledMs": 21600,
+      "captureMs": 21601,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 19,
+      "scheduledMs": 22800,
+      "captureMs": 22801,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 20,
+      "scheduledMs": 24000,
+      "captureMs": 24001,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 21,
+      "scheduledMs": 25200,
+      "captureMs": 25200,
+      "sha256": "ab2c254eebc4af7b43a448f6f72dac06c8688902e541370e6c675407b0cb9ec4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 22,
+      "scheduledMs": 26400,
+      "captureMs": 26400,
+      "sha256": "ab2c254eebc4af7b43a448f6f72dac06c8688902e541370e6c675407b0cb9ec4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 23,
+      "scheduledMs": 27600,
+      "captureMs": 27601,
+      "sha256": "0942102437447a7d9105f440d5ebc6007be327af9f39b84fa48bfc0d19bea518",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 24,
+      "scheduledMs": 28800,
+      "captureMs": 28801,
+      "sha256": "caabd219093840241ac2a38233d428b8fd387eeaf9a8f9ff1a13f9c8cc700c61",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 25,
+      "scheduledMs": 30000,
+      "captureMs": 30001,
+      "sha256": "80d672111056d992f5a1468179bf4fa98f5b6845a856052c636a17ead7efbaa6",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 26,
+      "scheduledMs": 31200,
+      "captureMs": 31200,
+      "sha256": "f8a3316c01570aa69cda3b0fcb029c5fd422d76469adf5106d1077c3dc1688b2",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 27,
+      "scheduledMs": 32400,
+      "captureMs": 32400,
+      "sha256": "82a0f9d31c0d55c4bda650ad920390321fed2d84615dd296b2e16e93579dd16f",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 28,
+      "scheduledMs": 33600,
+      "captureMs": 33600,
+      "sha256": "556d363da99f61f7cc3274a768895eb1b416653e8ec439030d445fd7e891bb9d",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 29,
+      "scheduledMs": 34800,
+      "captureMs": 34801,
+      "sha256": "6fa1050652175d446457050940f6b8681abcb792e3af6ac8f8c825e3a69710cb",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 30,
+      "scheduledMs": 36000,
+      "captureMs": 36001,
+      "sha256": "53848296403802d575a760189a7b3041112a81e6a4d495325b5f93d65615e769",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 31,
+      "scheduledMs": 37200,
+      "captureMs": 37200,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 32,
+      "scheduledMs": 38400,
+      "captureMs": 38400,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 33,
+      "scheduledMs": 39600,
+      "captureMs": 39600,
+      "sha256": "3cbc290252affa65b0ba7efbd60b3a75028dd68cb8d4664b4d88e63b61abae50",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 34,
+      "scheduledMs": 40800,
+      "captureMs": 40801,
+      "sha256": "3cbc290252affa65b0ba7efbd60b3a75028dd68cb8d4664b4d88e63b61abae50",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 35,
+      "scheduledMs": 42000,
+      "captureMs": 42001,
+      "sha256": "3cbc290252affa65b0ba7efbd60b3a75028dd68cb8d4664b4d88e63b61abae50",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 36,
+      "scheduledMs": 43200,
+      "captureMs": 43200,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 37,
+      "scheduledMs": 44400,
+      "captureMs": 44401,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 38,
+      "scheduledMs": 45600,
+      "captureMs": 45601,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 39,
+      "scheduledMs": 46800,
+      "captureMs": 46801,
+      "sha256": "3cbc290252affa65b0ba7efbd60b3a75028dd68cb8d4664b4d88e63b61abae50",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 40,
+      "scheduledMs": 48000,
+      "captureMs": 48000,
+      "sha256": "3cbc290252affa65b0ba7efbd60b3a75028dd68cb8d4664b4d88e63b61abae50",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 41,
+      "scheduledMs": 49200,
+      "captureMs": 49200,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 42,
+      "scheduledMs": 50400,
+      "captureMs": 50400,
+      "sha256": "4393bc0e165057fd180a58ff387be2e7a509b4929154de3fc403a74a533bb752",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 43,
+      "scheduledMs": 51600,
+      "captureMs": 51600,
+      "sha256": "9c42726eefea24a7c187b24c6fdd5befb4ad72aeb6493c54477839a9ac4033f4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 44,
+      "scheduledMs": 52800,
+      "captureMs": 52801,
+      "sha256": "9c42726eefea24a7c187b24c6fdd5befb4ad72aeb6493c54477839a9ac4033f4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 45,
+      "scheduledMs": 54000,
+      "captureMs": 54001,
+      "sha256": "9c42726eefea24a7c187b24c6fdd5befb4ad72aeb6493c54477839a9ac4033f4",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 46,
+      "scheduledMs": 55200,
+      "captureMs": 55200,
+      "sha256": "dfa6881faa01bd886cab4fe3be30bbe97e870f1063734b1d1cc1b1ac2bfb86b8",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 47,
+      "scheduledMs": 56400,
+      "captureMs": 56400,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 48,
+      "scheduledMs": 57600,
+      "captureMs": 57601,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 49,
+      "scheduledMs": 58800,
+      "captureMs": 58800,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 50,
+      "scheduledMs": 60000,
+      "captureMs": 60001,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 51,
+      "scheduledMs": 61200,
+      "captureMs": 61200,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 52,
+      "scheduledMs": 62400,
+      "captureMs": 62400,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 53,
+      "scheduledMs": 63600,
+      "captureMs": 63600,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 54,
+      "scheduledMs": 64800,
+      "captureMs": 64801,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 55,
+      "scheduledMs": 66000,
+      "captureMs": 66001,
+      "sha256": "93cfc1e8f3f1a07267844cb7b72a6b2546f6a1417423b061b0de2c5dd2af2468",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 56,
+      "scheduledMs": 67200,
+      "captureMs": 67201,
+      "sha256": "87d1798ed3875b9e6b64c466d623c6638cfbd857bd428dc9f8f84a6cdda68c9e",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 57,
+      "scheduledMs": 68400,
+      "captureMs": 68401,
+      "sha256": "87d1798ed3875b9e6b64c466d623c6638cfbd857bd428dc9f8f84a6cdda68c9e",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 58,
+      "scheduledMs": 69600,
+      "captureMs": 69601,
+      "sha256": "87d1798ed3875b9e6b64c466d623c6638cfbd857bd428dc9f8f84a6cdda68c9e",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 59,
+      "scheduledMs": 70800,
+      "captureMs": 70800,
+      "sha256": "87d1798ed3875b9e6b64c466d623c6638cfbd857bd428dc9f8f84a6cdda68c9e",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    },
+    {
+      "index": 60,
+      "scheduledMs": 72000,
+      "captureMs": 72000,
+      "sha256": "87d1798ed3875b9e6b64c466d623c6638cfbd857bd428dc9f8f84a6cdda68c9e",
+      "sourceSize": [
+        1080,
+        2400
+      ]
+    }
+  ],
+  "events": [
+    {
+      "atMs": 12104,
+      "action": "App输入框实际发送",
+      "round": 1,
+      "text": "Compute 12345 times 6789. Think briefly. Reply in one sentence ending ORDER_CHECK_OK. Do not use tools.",
+      "guestEpoch": 1792563257,
+      "hostEpoch": 1792562957
+    },
+    {
+      "atMs": 14268,
+      "action": "真实宿主最终回复可见",
+      "round": 1,
+      "replySeq": [
+        16
+      ]
+    },
+    {
+      "atMs": 24475,
+      "action": "实际界面已撤销停止和正在思考",
+      "round": 1
+    },
+    {
+      "atMs": 35618,
+      "action": "App输入框实际发送",
+      "round": 2,
+      "text": "Compute 12345 times 6789. Think briefly. Reply in one sentence ending ORDER_CHECK_OK. Do not use tools.",
+      "guestEpoch": 1792563281,
+      "hostEpoch": 1792562981
+    },
+    {
+      "atMs": 37733,
+      "action": "真实宿主最终回复可见",
+      "round": 2,
+      "replySeq": [
+        16,
+        25
+      ]
+    },
+    {
+      "atMs": 47998,
+      "action": "实际界面已撤销停止和正在思考",
+      "round": 2
+    },
+    {
+      "atMs": 51086,
+      "action": "返回主界面设置页"
+    },
+    {
+      "atMs": 55167,
+      "action": "重新进入同一会话"
+    }
+  ],
+  "continuous": true,
+  "edits": "仅等比例缩至540×1200并编码GIF，保留全部采样帧",
+  "gifSha256": "5ac46d9957223e0fcaa9c6027631a0914d7509328320b2707f3ab65e90c9ccdd",
+  "actualIntervalRangeMs": [
+    1199,
+    1201
+  ]
+}
