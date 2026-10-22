@@ -126,6 +126,8 @@ ViewModel 发送前生成 UUID
 
 对话列表接近底部时跟随更新；拖动查看历史后停止跟随，跳底或发送消息恢复。思考区域可展开，长行贴尾，快速预览不会强制抢回用户正在查看的旧历史。
 
+连续多个既无正文、也无工具结果的思考步骤在渲染时合并成一行收起（默认「💭 思考过程 · N 步 · M 次工具调用」），点按展开原有各步；带正文或带工具结果的步骤仍是独立气泡，不并入组。分组只发生在渲染层，不改变消息产生与合并；跳底和贴底按渲染项数计算。口径见 [连续思考步骤默认折叠](requirements/2026-10-22-连续思考折叠.md)。
+
 底部统计、任务、交互和队列区域限制最大高度并可滚动，避免多题多选项挤掉消息列表和输入框。
 
 通知状态机消费宿主快照、现代交互与本地事件，产出显示或撤销指令。回合完成依赖观测到运行状态由真变假；未观测到的过渡不能保证触发通知。子代理和归档会话过滤、交互键控去重及本地取消抑制用于减少重复或误报。实际送达仍依赖 Android 权限、后台策略和网络。
@@ -161,6 +163,7 @@ ViewModel 发送前生成 UUID
 | [InteractionTarget.kt](../app/src/main/java/dev/dshmobile/model/InteractionTarget.kt) | 回答目标类型 |
 | [ConversationViewModel.kt](../app/src/main/java/dev/dshmobile/ui/ConversationViewModel.kt) | 历史合并与操作 |
 | [ConversationActivity.kt](../app/src/main/java/dev/dshmobile/ui/ConversationActivity.kt) | 对话渲染与滚动 |
+| [ThinkingProcessGrouping.kt](../app/src/main/java/dev/dshmobile/ui/ThinkingProcessGrouping.kt) | 连续思考步骤折叠分组（纯 Kotlin） |
 | [SessionListScreen.kt](../app/src/main/java/dev/dshmobile/ui/SessionListScreen.kt) | 分组、过滤与列表操作 |
 | [SettingsStore.kt](../app/src/main/java/dev/dshmobile/data/SettingsStore.kt) | 设置持久化 |
 | [单元测试目录](../app/src/test/java/dev/dshmobile/) | 真实 Kotlin 函数与网络路径测试 |

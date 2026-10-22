@@ -11,9 +11,21 @@
 | 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
 | 设计文档 | 当前行为见 `docs/ARCHITECTURE.md` 及 `docs/requirements/`；`docs/DESIGN.md` 为历史设计 |
 | 产物根 | `<repo>\` |
-| 最后更新 | 2026-10-21：修复消息顺序与结束状态；完成铠甲鲸鱼图标和对外文档对齐；192项回归及最终包模拟器验收通过 |
-| 当前版本 | `app/version.properties` → versionCode=196 / versionName=0.1.195（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
-| 单测 | 192/192 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+| 最后更新 | 2026-10-22：连续思考步骤默认折叠（中间无正文步骤合并一行、带正文步骤不变）；216项回归与双包构建通过，模拟器核心场景验收通过 |
+| 当前版本 | `app/version.properties` → versionCode=202 / versionName=0.1.201（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
+| 单测 | 216/216 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+
+## 2026-10-22 连续思考步骤默认折叠（完成）
+
+- 用户截图问题：一个回合里连续多步只思考并调用工具、不写正文，每步各占一个气泡，首行都是「💭 思考过程 · 点按展开」，几屏全是重复空壳。
+- 实现：新增 `ui/ThinkingProcessGrouping.kt` 纯 Kotlin 分组器；`ConversationActivity` 列表改渲染分组结果，助手内容抽成 `AssistantMessageContent` 供独立气泡与组内各步共用，新增 `ProcessGroupBubble`；展开状态按组键提升到页面并按渲染项数修正 `listItemCount` 与自动贴底触发键；`ConversationViewModel` 未改。
+- 口径：连续 2 步及以上"正文空白且没有可见工具结果正文"的步骤合并成一行，摘要为「💭 思考过程 · N 步 · M 次工具调用 · 点按展开」；带正文的步骤（截图第一行与最后一行）不并入、不折叠；流式占位消息永不入组。
+- 实测发现：宿主给 187/188 个无正文步骤挂了 `tool/result` 条目，但正文都是空串，界面按现有规则整条跳过；因此折叠判据改为"界面上有没有可见输出"，而不是"有没有结果条目"。
+- 测试与构建：新增 24 项分组/文案用例，全量 216 项通过；`assembleDebug`、`assembleRelease` 成功，0.1.201（202），正式签名与包内分组键校验通过。
+- 设备验收：模拟器安装 Debug 包，经 `adb reverse` 连真实 dsh，打开用户截图同一会话（13:38 问子代理并发），中间 7 步并成一行、首尾带正文步骤不变、点按展开与再收起、组内单步展开、默认收起、跳到底部均通过。
+- 独立审查提出并已修正：自动贴底触发键缺渲染项数（折叠组被拆开时项数 +1 但消息键不变会漏滚）；并补充组内 `key(step.key)` 与 9 条边界用例。两处 Compose 改动晚于首个成品包，已重跑双包构建（0.1.201）并在设备补验，GIF 沿用 0.1.200 录制并在验收说明中写明版本。
+- 已知限制：不按回合切分（跨回合续跑会把两回合末尾/开头并成一组）；空正文独立工具结果消息会打断分组；三位数步数时摘要可能把「点按展开」挤成省略号。
+- [方案与13项对照](docs/requirements/2026-10-22-连续思考折叠.md)；[验收证据](test-evidence/thinking-fold-20261022/README.md)。
 
 ## 2026-10-21 消息顺序、结束状态、铠甲图标及对外文档（完成）
 

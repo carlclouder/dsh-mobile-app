@@ -108,11 +108,17 @@ class ConversationActivity : ComponentActivity() {
 @Composable
 private fun ConversationScreen(viewModel: ConversationViewModel, title: String, onBack: () -> Unit) {
     val messages by viewModel.messages.collectAsState()
+    // 渲染项：连续"没有正文、也没有可见工具结果"的思考步骤在渲染层合并成一组（默认收起），
+    // 避免只有思考标签和工具调用行的步骤把整页占满；带正文的步骤仍是独立气泡（见 ThinkingProcessGrouping）
+    val renderItems = remember(messages) { ThinkingProcessGrouper.group(messages) }
+    // 组展开状态按组键记忆：流式每 80ms 重建列表时不会把用户展开的组弹回收起
+    var expandedGroups by remember { mutableStateOf(emptySet<String>()) }
     val running by viewModel.running.collectAsState()
     val thinkingPreview by viewModel.thinkingPreview.collectAsState()
     val showThinking = running || thinkingPreview.content.isNotBlank()
     // 预览也是实际尾项，长消息后不能只滚到最后一条历史消息。
-    val listItemCount = messages.size + if (showThinking) 1 else 0
+    // 贴底与跳底都按渲染项数计算：分组后消息数与实际列表项数不再相等，沿用消息数会少滚或滚过头。
+    val listItemCount = renderItems.size + if (showThinking) 1 else 0
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     // 跳到底部按钮显隐（上翻离开底部时显示；提前声明供 Box 使用）
@@ -167,7 +173,22 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 // 注：不传 key（默认索引键）——避免消息 key 重复导致 LazyColumn 崩溃（部分流式/回显状态下 key 会重复）
-                items(messages) { msg -> MessageBubble(msg) }
+                items(renderItems) { item ->
+                    when (item) {
+                        is ConversationItem.Message -> MessageBubble(item.message)
+                        is ConversationItem.ProcessGroup -> ProcessGroupBubble(
+                            group = item,
+                            expanded = item.key in expandedGroups,
+                            onToggle = {
+                                expandedGroups = if (item.key in expandedGroups) {
+                                    expandedGroups - item.key
+                                } else {
+                                    expandedGroups + item.key
+                                }
+                            },
+                        )
+                    }
+                }
                 if (showThinking) {
                     item(key = "thinking") { ThinkingIndicator(thinkingPreview) }
                 }
@@ -271,8 +292,11 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
     }
     val lastKey = messages.lastOrNull()?.key ?: ""
     val lastTextLen = messages.lastOrNull()?.text?.length ?: 0
+    // 触发键里必须带 listItemCount：分组后列表项数不再等于消息数，存在"消息没变、项数变了"的情况
+    // （末步被合入非空工具结果正文 → 该步不可折叠 → 思考组被拆开，项数 +1）。只盯 messages.size
+    // 会漏掉这种变化，新出现的项停在视口下方、只剩「跳到底部」按钮可点。
     androidx.compose.runtime.LaunchedEffect(
-        historyLoaded, messages.size, lastKey, lastTextLen, running,
+        historyLoaded, messages.size, listItemCount, lastKey, lastTextLen, running,
         thinkingPreview.key, thinkingPreview.content.length,
     ) {
         if (listItemCount == 0) return@LaunchedEffect
@@ -398,38 +422,7 @@ private fun MessageBubble(msg: UiMessage) {
                 // 现把页面底色调亮为 surface（见根布局 background），气泡与页面形成清晰对比。
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                     Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
-                        msg.reasoning?.takeIf { it.isNotBlank() }?.let {
-                            // 流式占位消息 → 折叠行走"钉尾滚动摘要"态（对齐 WebUI ReasoningRow）；
-                            // 落定/历史消息保持原静态文案
-                            CollapsibleThinking(
-                                it,
-                                streaming = msg.key == ConversationViewModel.STREAMING_KEY,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                        }
-                        // 流式占位消息用纯文本渲染（修复"表格闪烁/错乱"）：AndroidView TextView
-                        // 每 80ms 全量重排 markdown，表格在半成品语法期反复错乱重绘。落定
-                        // （settled AssistantMessage 替换占位）后一次性渲染完整 markdown。
-                        // 空正文跳过渲染：空 TextView 仍占一行高度，是"思考行与工具卡之间大空隙"的来源。
-                        if (msg.key == ConversationViewModel.STREAMING_KEY) {
-                            if (msg.text.isNotEmpty()) {
-                                Text(msg.text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        } else {
-                            if (msg.text.isNotBlank()) {
-                                CollapsibleMarkdownBody(msg.text)
-                            }
-                        }
-                        if (msg.toolCalls.isNotEmpty()) {
-                            if (msg.text.isNotBlank() || msg.reasoning?.isNotBlank() == true) {
-                                Spacer(Modifier.height(4.dp))
-                            }
-                            msg.toolCalls.forEach { tc -> ToolCallCard(tc) }
-                        }
-                        // 工具结果（已合并进本助手消息）：对齐 WebUI 紧凑渲染——默认单行（宿主
-                        // view.title 或首行截断），点按展开全文
-                        msg.toolResults.forEach { result -> CollapsibleToolResult(result, msg.toolError) }
-                        TimestampLine(msg.timeMillis)
+                        AssistantMessageContent(msg)
                     }
                 }
             }
@@ -456,6 +449,92 @@ private fun MessageBubble(msg: UiMessage) {
                         Spacer(Modifier.height(3.dp))
                         MarkdownText(msg.text, fontSizeSp = 13f)
                         TimestampLine(msg.timeMillis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 助手消息内容：独立气泡与"思考组展开后的各步"共用同一份渲染，避免两套口径走样。
+ * 顺序：思考行（收起态单行，点按展开全文）→ 正文 → 工具调用 → 工具结果 → 时间。
+ */
+@Composable
+private fun AssistantMessageContent(msg: UiMessage) {
+    msg.reasoning?.takeIf { it.isNotBlank() }?.let {
+        // 流式占位消息 → 折叠行走"钉尾滚动摘要"态（对齐 WebUI ReasoningRow）；
+        // 落定/历史消息保持原静态文案
+        CollapsibleThinking(
+            it,
+            streaming = msg.key == ConversationViewModel.STREAMING_KEY,
+        )
+        Spacer(Modifier.height(2.dp))
+    }
+    // 流式占位消息用纯文本渲染（修复"表格闪烁/错乱"）：AndroidView TextView
+    // 每 80ms 全量重排 markdown，表格在半成品语法期反复错乱重绘。落定
+    // （settled AssistantMessage 替换占位）后一次性渲染完整 markdown。
+    // 空正文跳过渲染：空 TextView 仍占一行高度，是"思考行与工具卡之间大空隙"的来源。
+    if (msg.key == ConversationViewModel.STREAMING_KEY) {
+        if (msg.text.isNotEmpty()) {
+            Text(msg.text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+        }
+    } else {
+        if (msg.text.isNotBlank()) {
+            CollapsibleMarkdownBody(msg.text)
+        }
+    }
+    if (msg.toolCalls.isNotEmpty()) {
+        if (msg.text.isNotBlank() || msg.reasoning?.isNotBlank() == true) {
+            Spacer(Modifier.height(4.dp))
+        }
+        msg.toolCalls.forEach { tc -> ToolCallCard(tc) }
+    }
+    // 工具结果（已合并进本助手消息）：对齐 WebUI 紧凑渲染——默认单行（宿主
+    // view.title 或首行截断），点按展开全文
+    msg.toolResults.forEach { result -> CollapsibleToolResult(result, msg.toolError) }
+    TimestampLine(msg.timeMillis)
+}
+
+/**
+ * 连续思考步骤组（需求：没有具体输出的连续思考框默认折叠，避免铺满整页）。
+ *
+ * 收起态只占一行「💭 思考过程 · N 步 · M 次工具调用 · 点按展开」；点开展开组内各步
+ * （各步沿用 [AssistantMessageContent]，思考行、工具调用、时间原样可读），再点收起。
+ * 带正文或带工具结果的步骤不进组，仍按独立气泡显示——它们是用户说的"有明确输出的框"。
+ * 展开状态由页面按组键持有（见 ConversationScreen 的 expandedGroups），列表刷新不重置。
+ */
+@Composable
+private fun ProcessGroupBubble(
+    group: ConversationItem.ProcessGroup,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
+                    Text(
+                        processGroupLabel(group.steps.size, group.toolCallCount, expanded),
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onToggle)
+                            .padding(vertical = 1.dp),
+                    )
+                    if (expanded) {
+                        // 每步用消息键作 key：历史对账在组中间插入步骤时，各步的思考行/工具卡
+                        // 展开状态跟着自己那一步走，不会被位置槽错配到相邻步骤
+                        group.steps.forEach { step ->
+                            androidx.compose.runtime.key(step.key) { AssistantMessageContent(step) }
+                        }
                     }
                 }
             }
