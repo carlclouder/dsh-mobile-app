@@ -1,24 +1,24 @@
-0 22:03:21.254 capture_ms=293
-1 22:03:21.799 capture_ms=321
-2 22:03:22.288 capture_ms=298
-3 22:03:22.809 capture_ms=307
-4 22:03:23.333 capture_ms=319
-5 22:03:23.846 capture_ms=322
-6 22:03:24.347 capture_ms=311
-6 tap at (452,1484)
-7 22:03:24.881 capture_ms=336
-8 22:03:25.381 capture_ms=321
-9 22:03:25.887 capture_ms=318
-10 22:03:26.397 capture_ms=313
-11 22:03:26.904 capture_ms=319
-12 22:03:27.407 capture_ms=308
-13 22:03:27.949 capture_ms=328
-14 22:03:28.448 capture_ms=316
-15 22:03:28.962 capture_ms=318
-15 tap at (452,1484)
-16 22:03:29.459 capture_ms=301
-17 22:03:29.991 capture_ms=321
-18 22:03:30.515 capture_ms=343
-19 22:03:30.999 capture_ms=312
-20 22:03:31.508 capture_ms=307
-21 22:03:32.010 capture_ms=309
+0 22:38:44.567 capture_ms=369
+1 22:38:45.055 capture_ms=346
+2 22:38:45.576 capture_ms=354
+3 22:38:46.094 capture_ms=350
+4 22:38:46.600 capture_ms=348
+5 22:38:47.123 capture_ms=360
+6 22:38:47.611 capture_ms=341
+6 tap at (300,1448)
+7 22:38:48.179 capture_ms=366
+8 22:38:48.662 capture_ms=346
+9 22:38:49.197 capture_ms=373
+10 22:38:49.703 capture_ms=372
+11 22:38:50.205 capture_ms=354
+12 22:38:50.717 capture_ms=346
+13 22:38:51.220 capture_ms=339
+14 22:38:51.743 capture_ms=341
+15 22:38:52.250 capture_ms=340
+15 tap at (300,1448)
+16 22:38:52.790 capture_ms=370
+17 22:38:53.297 capture_ms=364
+18 22:38:53.770 capture_ms=329
+19 22:38:54.292 capture_ms=344
+20 22:38:54.805 capture_ms=347
+21 22:38:55.315 capture_ms=348

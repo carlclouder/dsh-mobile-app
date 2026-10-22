@@ -499,8 +499,12 @@ private fun AssistantMessageContent(msg: UiMessage) {
 /**
  * 连续思考步骤组（需求：没有具体输出的连续思考框默认折叠，避免铺满整页）。
  *
- * 收起态只占一行「💭 思考过程 · N 步 · M 次工具调用 · 点按展开」；点开展开组内各步
- * （各步沿用 [AssistantMessageContent]，思考行、工具调用、时间原样可读），再点收起。
+ * 收起态只占一行「▸ 💭 思考过程 · N 步 · M 次工具调用 · 点按展开」——折的是原来那多个框；
+ * 落在列表末尾的组（[ConversationItem.ProcessGroup.isTail]）收起时，这一行改为
+ * 「▸ 💭 N 步」+ 只滚动显示最新一步的内容，让用户看得到当前推进，又不铺满页面。
+ * 点开后必须还原成**原来一个个独立的气泡**（各自的气泡边框、时间行、自己的
+ * 「💭 思考过程 · 点按展开」），不能把多步塞进同一个框里。所以展开时逐步调用
+ * [MessageBubble]，与列表里的独立消息走完全相同的渲染路径。
  * 带正文或带工具结果的步骤不进组，仍按独立气泡显示——它们是用户说的"有明确输出的框"。
  * 展开状态由页面按组键持有（见 ConversationScreen 的 expandedGroups），列表刷新不重置。
  */
@@ -510,33 +514,55 @@ private fun ProcessGroupBubble(
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
-            androidx.compose.foundation.text.selection.SelectionContainer {
-                Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
-                    Text(
-                        processGroupLabel(group.steps.size, group.toolCallCount, expanded),
-                        fontSize = 11.sp,
-                        lineHeight = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onToggle)
-                            .padding(vertical = 1.dp),
-                    )
-                    if (expanded) {
-                        // 每步用消息键作 key：历史对账在组中间插入步骤时，各步的思考行/工具卡
-                        // 展开状态跟着自己那一步走，不会被位置槽错配到相邻步骤
-                        group.steps.forEach { step ->
-                            androidx.compose.runtime.key(step.key) { AssistantMessageContent(step) }
+    // 与外层列表的 4dp 行距保持一致：展开后每个气泡的间隔和正常列表里一样
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // 折叠控制行：收起态就是这一行摘要，展开态仍留在这里供再次收起
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
+                // 列表尾部的组：收起时只滚动显示最新一步的内容（用户要求"仅滚动显示最新一个气泡内容"），
+                // 行首仍带 ▸ 折叠标识。最新一步没有思考文本时（纯工具调用步骤）退回该组里
+                // 最近一条有文本的思考，再没有就走静态摘要行。
+                val tailContent = group.steps
+                    .lastOrNull { it.reasoning?.isNotBlank() == true }
+                    ?.reasoning
+                if (!expanded && group.isTail && tailContent != null) {
+                    Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
+                        ThinkingStreamRow(
+                            content = tailContent,
+                            onExpand = onToggle,
+                            label = processGroupTailLabel(group.steps.size),
+                            sweep = false,   // 已落定步骤不播扫光，只保留钉尾滚动
+                        )
+                    }
+                } else {
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
+                            Text(
+                                processGroupLabel(group.steps.size, group.toolCallCount, expanded),
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onToggle)
+                                    .padding(vertical = 1.dp),
+                            )
                         }
                     }
                 }
+            }
+        }
+        if (expanded) {
+            // 还原成原来的多个独立气泡：每步一个气泡（含自己的思考行、工具调用、时间行），
+            // 单个气泡的点按展开能力与原实现一致。key 用消息键，历史对账插入步骤时
+            // 各步的展开状态跟着自己那一步走，不会被位置槽错配到相邻步骤。
+            group.steps.forEach { step ->
+                androidx.compose.runtime.key(step.key) { MessageBubble(step) }
             }
         }
     }

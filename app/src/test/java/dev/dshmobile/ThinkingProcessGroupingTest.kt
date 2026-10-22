@@ -8,8 +8,10 @@ import dev.dshmobile.ui.ConversationViewModel.ToolResultDisplay
 import dev.dshmobile.ui.ConversationViewModel.UiMessage
 import dev.dshmobile.ui.ThinkingProcessGrouper
 import dev.dshmobile.ui.processGroupLabel
+import dev.dshmobile.ui.processGroupTailLabel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -208,11 +210,11 @@ class ThinkingProcessGroupingTest {
     @Test
     fun `group label shows step and tool call counts`() {
         assertEquals(
-            "💭 思考过程 · 3 步 · 5 次工具调用 · 点按展开",
+            "▸ 💭 思考过程 · 3 步 · 5 次工具调用 · 点按展开",
             processGroupLabel(stepCount = 3, toolCallCount = 5, expanded = false),
         )
         assertEquals(
-            "💭 思考过程 · 3 步 · 5 次工具调用 · 点按收起",
+            "▸ 💭 思考过程 · 3 步 · 5 次工具调用 · 点按收起",
             processGroupLabel(stepCount = 3, toolCallCount = 5, expanded = true),
         )
     }
@@ -220,9 +222,81 @@ class ThinkingProcessGroupingTest {
     @Test
     fun `group label omits tool call count when there is none`() {
         assertEquals(
-            "💭 思考过程 · 2 步 · 点按展开",
+            "▸ 💭 思考过程 · 2 步 · 点按展开",
             processGroupLabel(stepCount = 2, toolCallCount = 0, expanded = false),
         )
+    }
+
+    @Test
+    fun `tail group keeps fold marker and step count in one line`() {
+        // 列表尾部的组收起时这一行后面紧跟"只滚动显示的最新一步内容"，所以只留折叠标识与步数
+        assertEquals("▸ 💭 3 步", processGroupTailLabel(3))
+        assertEquals("▸ 💭 7 步", processGroupTailLabel(7))
+    }
+
+    // ---------- 列表尾部标记 ----------
+
+    @Test
+    fun `trailing group is marked as list tail`() {
+        val items = ThinkingProcessGrouper.group(listOf(thinkStep("seq-1"), thinkStep("seq-2")))
+
+        assertTrue(assertIs<ConversationItem.ProcessGroup>(items.single()).isTail)
+    }
+
+    @Test
+    fun `group followed by an answer is not the list tail`() {
+        val items = ThinkingProcessGrouper.group(
+            listOf(thinkStep("seq-1"), thinkStep("seq-2"), answerStep("seq-3", "带正文的步骤")),
+        )
+
+        assertFalse(assertIs<ConversationItem.ProcessGroup>(items[0]).isTail)
+    }
+
+    @Test
+    fun `group followed by a running placeholder stays the list tail`() {
+        // 回合还在跑：组后面跟着流式占位（没有正文），这一组仍是最新一组，收起时要滚动显示最新内容
+        val streaming = UiMessage(
+            key = ConversationViewModel.STREAMING_KEY,
+            role = Role.ASSISTANT,
+            text = "",
+            reasoning = "正在思考",
+        )
+        val items = ThinkingProcessGrouper.group(
+            listOf(thinkStep("seq-1"), thinkStep("seq-2"), streaming),
+        )
+
+        assertTrue(assertIs<ConversationItem.ProcessGroup>(items[0]).isTail)
+    }
+
+    @Test
+    fun `middle run between two answers is still folded`() {
+        // 追加的尾部行为不能影响原有口径：两条带正文回答之间的多步照样折叠
+        val items = ThinkingProcessGrouper.group(
+            listOf(
+                answerStep("seq-1", "第一段"),
+                thinkStep("seq-2"), thinkStep("seq-3"), thinkStep("seq-4"),
+                answerStep("seq-5", "第二段"),
+            ),
+        )
+
+        assertEquals(3, items.size)
+        val group = assertIs<ConversationItem.ProcessGroup>(items[1])
+        assertEquals(3, group.steps.size)
+        assertFalse(group.isTail, "中间组不该带尾部标记")
+    }
+
+    @Test
+    fun `group followed by another group is not the list tail`() {
+        val items = ThinkingProcessGrouper.group(
+            listOf(
+                thinkStep("seq-1"), thinkStep("seq-2"),
+                answerStep("seq-3", "中间回答"),
+                thinkStep("seq-4"), thinkStep("seq-5"),
+            ),
+        )
+
+        assertFalse(assertIs<ConversationItem.ProcessGroup>(items[0]).isTail)
+        assertTrue(assertIs<ConversationItem.ProcessGroup>(items[2]).isTail)
     }
 
     // ---------- 组键与状态稳定性 ----------
@@ -338,7 +412,7 @@ class ThinkingProcessGroupingTest {
     @Test
     fun `group label for expanded run without tool calls`() {
         assertEquals(
-            "💭 思考过程 · 2 步 · 点按收起",
+            "▸ 💭 思考过程 · 2 步 · 点按收起",
             processGroupLabel(stepCount = 2, toolCallCount = 0, expanded = true),
         )
     }
