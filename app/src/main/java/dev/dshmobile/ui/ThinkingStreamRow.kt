@@ -68,9 +68,21 @@ internal fun thinkingSweepBandWidthPx(rowWidthPx: Float, density: Float): Float 
     return target.coerceIn(min, max)
 }
 
-/** 流式思考折叠行：💭 思考中 + 单行钉尾滚动摘要 + 扫光动画；点按回调交调用方展开全文。 */
+/**
+ * 流式思考折叠行：💭 思考中 + 单行钉尾滚动摘要 + 扫光动画；点按回调交调用方展开全文。
+ *
+ * @param label 左侧固定文案；尾部折叠行传带"折叠标识"的文案（▸ 💭 思考过程），流式默认"💭 思考中"
+ * @param sweep 是否播放扫光。流式中开启（提示回合仍在跑）；已落定的尾部折叠行关闭，
+ *              只保留钉尾滚动——内容停住就说明没有新产出，不需要额外动画暗示
+ */
 @Composable
-internal fun ThinkingStreamRow(content: String, onExpand: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ThinkingStreamRow(
+    content: String,
+    onExpand: () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "💭 思考中",
+    sweep: Boolean = true,
+) {
     val summary = thinkingLatestLine(content)
 
     // "减少动画"判定：系统 animator 时长缩放为 0 = 用户要求弱化动画 → 不播扫光。
@@ -82,7 +94,7 @@ internal fun ThinkingStreamRow(content: String, onExpand: () -> Unit, modifier: 
 
     // 扫光进度 0→1 无限循环（2.6s 对齐 WebUI；LinearEasing 与 WebUI ease-out 的差异为已声明偏差：
     // 线性在循环重启时刻速度更均匀）。动画值只在 drawWithContent（绘制阶段）读取，不触发重组。
-    val sweepProgress: State<Float>? = if (reducedMotion) {
+    val sweepProgress: State<Float>? = if (reducedMotion || !sweep) {
         null
     } else {
         val transition = rememberInfiniteTransition(label = "thinkingSweep")
@@ -131,7 +143,7 @@ internal fun ThinkingStreamRow(content: String, onExpand: () -> Unit, modifier: 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "💭 思考中",
+            label,
             fontSize = 11.sp,
             lineHeight = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

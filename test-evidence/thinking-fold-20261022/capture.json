@@ -1,7 +1,7 @@
 {
   "capture": {
     "device": "emulator-5554 (AVD dsh_test, Android 15, x86_64)",
-    "app_version": "0.1.200 (201)",
+    "app_version": "0.1.207 (208)",
     "capture_command": "adb exec-out screencap -p",
     "native_frame_size": "1080x2400 (density 420)",
     "gif_size": "540x1200",
@@ -13,153 +13,153 @@
       "frame 15 -> collapse"
     ],
     "tap_point": [
-      452,
-      1484
+      300,
+      1448
     ],
     "host": "http://127.0.0.1:3080 via adb reverse tcp:3080",
-    "session": "AI自主推进开发新规则 (13:38 提问 dsh会话是否有子agent并行能力?)",
+    "session": "AI自主推进开发新规则（13:38 提问「dsh会话是否有子agent并行能力?」，与用户截图同一会话）",
     "log_lines": [
-      "0 22:03:21.254 capture_ms=293",
-      "1 22:03:21.799 capture_ms=321",
-      "2 22:03:22.288 capture_ms=298",
-      "3 22:03:22.809 capture_ms=307",
-      "4 22:03:23.333 capture_ms=319",
-      "5 22:03:23.846 capture_ms=322",
-      "6 22:03:24.347 capture_ms=311",
-      "6 tap at (452,1484)",
-      "7 22:03:24.881 capture_ms=336",
-      "8 22:03:25.381 capture_ms=321",
-      "9 22:03:25.887 capture_ms=318",
-      "10 22:03:26.397 capture_ms=313",
-      "11 22:03:26.904 capture_ms=319",
-      "12 22:03:27.407 capture_ms=308",
-      "13 22:03:27.949 capture_ms=328",
-      "14 22:03:28.448 capture_ms=316",
-      "15 22:03:28.962 capture_ms=318",
-      "15 tap at (452,1484)",
-      "16 22:03:29.459 capture_ms=301",
-      "17 22:03:29.991 capture_ms=321",
-      "18 22:03:30.515 capture_ms=343",
-      "19 22:03:30.999 capture_ms=312",
-      "20 22:03:31.508 capture_ms=307",
-      "21 22:03:32.010 capture_ms=309"
+      "0 22:38:44.567 capture_ms=369",
+      "1 22:38:45.055 capture_ms=346",
+      "2 22:38:45.576 capture_ms=354",
+      "3 22:38:46.094 capture_ms=350",
+      "4 22:38:46.600 capture_ms=348",
+      "5 22:38:47.123 capture_ms=360",
+      "6 22:38:47.611 capture_ms=341",
+      "6 tap at (300,1448)",
+      "7 22:38:48.179 capture_ms=366",
+      "8 22:38:48.662 capture_ms=346",
+      "9 22:38:49.197 capture_ms=373",
+      "10 22:38:49.703 capture_ms=372",
+      "11 22:38:50.205 capture_ms=354",
+      "12 22:38:50.717 capture_ms=346",
+      "13 22:38:51.220 capture_ms=339",
+      "14 22:38:51.743 capture_ms=341",
+      "15 22:38:52.250 capture_ms=340",
+      "15 tap at (300,1448)",
+      "16 22:38:52.790 capture_ms=370",
+      "17 22:38:53.297 capture_ms=364",
+      "18 22:38:53.770 capture_ms=329",
+      "19 22:38:54.292 capture_ms=344",
+      "20 22:38:54.805 capture_ms=347",
+      "21 22:38:55.315 capture_ms=348"
     ]
   },
   "frames": [
     {
       "name": "frame-0000.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0001.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0002.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0003.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0004.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0005.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0006.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0007.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0008.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0009.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0010.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0011.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0012.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0013.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0014.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0015.png",
-      "bytes": 417274,
+      "bytes": 401861,
       "state": "expanded"
     },
     {
       "name": "frame-0016.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0017.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0018.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0019.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0020.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     },
     {
       "name": "frame-0021.png",
-      "bytes": 403020,
+      "bytes": 398509,
       "state": "collapsed"
     }
   ],
   "gif": {
     "name": "toggle.gif",
-    "bytes": 231700,
+    "bytes": 220710,
     "frames": 22,
     "duration_ms": 500,
     "loop": 0

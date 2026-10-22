@@ -19,11 +19,13 @@ internal sealed interface ConversationItem {
      * @param key 组键 = 组内首步消息键加前缀；首步被历史对账替换时组自然重组，展开状态不会串到别的组
      * @param steps 组内各步，保持消息原顺序
      * @param toolCallCount 组内各步工具调用数之和，仅用于摘要文案
+     * @param isTail 是否是列表最末一项（列表尾部的组在收起态只滚动显示最新一步的内容）
      */
     data class ProcessGroup(
         val key: String,
         val steps: List<UiMessage>,
         val toolCallCount: Int,
+        val isTail: Boolean = false,
     ) : ConversationItem
 }
 
@@ -57,7 +59,8 @@ internal object ThinkingProcessGrouper {
         val items = ArrayList<ConversationItem>(messages.size)
         val batch = ArrayList<UiMessage>()
 
-        // 结算当前累加批次：≥2 步成组，1 步原样输出，0 步什么也不做
+        // 结算当前累加批次：≥2 步成组，1 步原样输出，0 步什么也不做。
+        // 是否"列表尾部组"统一在扫描结束后判定（见 markTailGroup），这里不区分位置。
         fun flushBatch() {
             when {
                 batch.isEmpty() -> Unit
@@ -82,7 +85,30 @@ internal object ThinkingProcessGrouper {
             }
         }
         flushBatch()   // 末尾未被打断的批次同样要结算
+        markTailGroup(items)
         return items
+    }
+
+    /**
+     * 标记"最新一组仍在推进的思考步骤"（[ConversationItem.ProcessGroup.isTail]）。
+     *
+     * 判定口径：列表里最后一组，且它之后没有带正文的助手回答。之后只有流式占位、工具结果、
+     * 上下文注入、用户消息等都不影响——那些不代表这一轮已经写出结论。
+     * 只在最新一组上加标记：正文之间的多步照样折叠，尾部这一组收起时额外滚动显示最新一步内容。
+     */
+    private fun markTailGroup(items: MutableList<ConversationItem>) {
+        val lastGroupIndex = items.indexOfLast { it is ConversationItem.ProcessGroup }
+        if (lastGroupIndex < 0) return
+        val answeredAfter = items.drop(lastGroupIndex + 1).any { item ->
+            item is ConversationItem.Message &&
+                item.message.role == Role.ASSISTANT &&
+                item.message.text.isNotBlank()
+        }
+        if (answeredAfter) return
+        val group = items[lastGroupIndex]
+        if (group is ConversationItem.ProcessGroup && !group.isTail) {
+            items[lastGroupIndex] = group.copy(isTail = true)
+        }
     }
 
     /**
@@ -103,13 +129,20 @@ internal object ThinkingProcessGrouper {
 
 /**
  * 组摘要单行文案：收起态提示"点按展开"，展开态提示"点按收起"。
+ * 行首的 ▸ 是明确的折叠标识（用户要求"有明确的折叠标识"）。
  * 没有工具调用时（只连续思考）不显示"0 次工具调用"，避免噪声。
  */
 internal fun processGroupLabel(stepCount: Int, toolCallCount: Int, expanded: Boolean): String {
     val action = if (expanded) "点按收起" else "点按展开"
     return if (toolCallCount > 0) {
-        "💭 思考过程 · $stepCount 步 · $toolCallCount 次工具调用 · $action"
+        "▸ 💭 思考过程 · $stepCount 步 · $toolCallCount 次工具调用 · $action"
     } else {
-        "💭 思考过程 · $stepCount 步 · $action"
+        "▸ 💭 思考过程 · $stepCount 步 · $action"
     }
 }
+
+/**
+ * 列表尾部思考组在收起态的前缀文案：折叠标识 + 步数，后面紧跟"只滚动显示的最新一步内容"。
+ * 尾部组要跟实时内容抢一行宽度，所以这里不写"点按展开"（▸ 已表明折叠，整行可点）。
+ */
+internal fun processGroupTailLabel(stepCount: Int): String = "▸ 💭 $stepCount 步"
