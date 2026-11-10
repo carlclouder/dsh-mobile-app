@@ -581,7 +581,8 @@ class DshApiClient(baseUrl: String) {
         }
     }
 
-    /** method="session.models"；拉可选模型目录 + 当前选择（需求：模型/推理等级选择器）。 */    suspend fun sessionModels(sessionId: String): ApiResult<dev.dshmobile.model.ModelDirectory> {
+    /** method="session.models"；拉可选模型目录 + 当前选择（需求：模型/推理等级选择器）。 */
+    suspend fun sessionModels(sessionId: String): ApiResult<dev.dshmobile.model.ModelDirectory> {
         val payload = buildJsonObject { put("sessionId", sessionId) }
         return when (val r = call("session.models", payload)) {
             is ApiResult.Ok -> mapValue(r) { root ->
@@ -593,15 +594,79 @@ class DshApiClient(baseUrl: String) {
         }
     }
 
-    /** method="session.selectModel"；选择 provider/model/reasoningEffort。 */
+    /**
+     * method="session/modelCatalog"（新版宿主，参数为空）：拉全部可路由模型目录。
+     * 结果形状 {default:{provider,model,reasoningEffort?}, routableProviders, groups, failures}，
+     * 与旧 session.models 的 {current, routable, groups, failures} 不同：
+     * 这里把 default 映射成 current，供 UI 在还没有 modelSelection 投影时兜底显示。
+     */
+    suspend fun sessionModelCatalog(): ApiResult<dev.dshmobile.model.ModelDirectory> =
+        when (val r = callModernRaw("session/modelCatalog", buildJsonObject { })) {
+            is ApiResult.Ok -> {
+                val root = r.value as? JsonObject
+                    ?: return ApiResult.NetError(IOException("模型目录为空响应"))
+                try {
+                    val groups = (root["groups"] as? JsonArray)?.map { el ->
+                        dev.dshmobile.model.DshJson.decodeFromJsonElement(
+                            dev.dshmobile.model.ModelProviderGroup.serializer(), el)
+                    } ?: emptyList()
+                    val failures = (root["failures"] as? JsonArray)?.map { el ->
+                        dev.dshmobile.model.DshJson.decodeFromJsonElement(
+                            dev.dshmobile.model.ModelCatalogFailure.serializer(), el)
+                    } ?: emptyList()
+                    val current = (root["default"] as? JsonObject)?.let { el ->
+                        dev.dshmobile.model.DshJson.decodeFromJsonElement(
+                            dev.dshmobile.model.ModelSelection.serializer(), el)
+                    }
+                    ApiResult.Ok(
+                        dev.dshmobile.model.ModelDirectory(
+                            current = current,
+                            routable = current != null,
+                            groups = groups,
+                            failures = failures,
+                        )
+                    )
+                } catch (e: Exception) {
+                    ApiResult.NetError(IOException("模型目录解析失败：${e.message}"))
+                }
+            }
+            is ApiResult.BizError -> r
+            is ApiResult.NetError -> r
+        }
+
+    /**
+     * method="session/projections"：读一个会话的全部客户端投影值。
+     * 返回投影 values 对象（含 modelSelection / contextPressure 等），拿不到 values 视为失败，
+     * 不能把"没读到"当成"投影为空"。
+     */
+    suspend fun sessionProjections(sessionId: String): ApiResult<JsonObject> =
+        when (val r = callModernRaw(
+            "session/projections",
+            buildJsonObject { put("request", buildJsonObject { put("sessionId", sessionId) }) },
+        )) {
+            is ApiResult.Ok -> {
+                val values = (r.value as? JsonObject)?.get("values") as? JsonObject
+                if (values == null) ApiResult.NetError(IOException("投影 values 缺失")) else ApiResult.Ok(values)
+            }
+            is ApiResult.BizError -> r
+            is ApiResult.NetError -> r
+        }
+
+    /**
+     * method="session/selectModel"（新版宿主）：选择 provider/model/reasoningEffort。
+     * 新版参数在 request 容器内，旧版点号协议是平铺参数；先走新版，失败再回退旧接口。
+     */
     suspend fun sessionSelectModel(sessionId: String, provider: String, model: String, reasoningEffort: String?): ApiResult<Unit> {
-        val payload = buildJsonObject {
+        val request = buildJsonObject {
             put("sessionId", sessionId)
             put("provider", provider)
             put("model", model)
             reasoningEffort?.let { put("reasoningEffort", it) }
         }
-        return when (val r = call("session.selectModel", payload)) {
+        val modern = callModernRaw("session/selectModel", buildJsonObject { put("request", request) })
+        if (modern is ApiResult.Ok) return ApiResult.Ok(Unit)
+        // 旧宿主回退：旧接口为平铺参数
+        return when (val r = call("session.selectModel", request)) {
             is ApiResult.Ok -> ApiResult.Ok(Unit)
             is ApiResult.BizError -> r
             is ApiResult.NetError -> r

@@ -104,6 +104,15 @@ class EventStreamService : android.app.Service() {
             refresh = { sessionId -> serviceScope.launch { refreshQuestionProjection(sessionId) } },
             log = { message -> android.util.Log.w(TAG, message) },
         )
+        // 冷启动竞态兜底：归档集合只由 workspace/follow 流下发，流就绪前（或断线期间）
+        // 集合为空，已归档会话会整批"重现"在列表里。先把上次已知集合注入状态机，
+        // 流真正就绪后以宿主下发的完整集合覆盖（applyArchivedIds）。
+        val cachedArchived = loadPersistedArchivedIds()
+        if (cachedArchived.isNotEmpty()) {
+            synchronized(machineLock) {
+                stateMachine.setArchivedSessionIds(cachedArchived)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -366,16 +375,39 @@ class EventStreamService : android.app.Service() {
         }
     }
 
-    /** 应用归档集合：注入状态机（快照排除归档 → 列表隐藏/不通知）并刷新快照。 */
+    /** 应用归档集合：注入状态机（快照排除归档 → 列表隐藏/不通知）、落盘缓存并刷新快照。 */
     private fun applyArchivedSet(element: kotlinx.serialization.json.JsonElement?) {
         val ids = (element as? kotlinx.serialization.json.JsonArray)
             ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
             ?: return
+        applyArchivedIds(ids)
+    }
+
+    /**
+     * 归档集合的唯一入口（流帧 / host 帧 / REST 兜底三处共用）：
+     * 同步状态机 + 持久化，保证下次冷启动能先按上次集合隐藏。
+     */
+    private fun applyArchivedIds(ids: Collection<String>) {
         synchronized(machineLock) {
             stateMachine.setArchivedSessionIds(ids)
+            persistArchivedIds(ids)
             publishSnapshot()
         }
     }
+
+    private fun persistArchivedIds(ids: Collection<String>) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putString(KEY_ARCHIVED_SESSION_IDS, ids.joinToString("\n"))
+            .apply()
+    }
+
+    private fun loadPersistedArchivedIds(): Set<String> =
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+            .getString(KEY_ARCHIVED_SESSION_IDS, null)
+            ?.split('\n')
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            ?: emptySet()
 
     /**
      * 工作区流的永久回路：连 `/api/remote.mux` → 开 workspace/follow 流 → 收帧。
@@ -558,7 +590,7 @@ class EventStreamService : android.app.Service() {
                     (frame as? HostFrame.WorkspaceChanged)?.let { upsertWorkspace(it.workspace) }
                     // 需求 2.9.3：归档集变化 → 注入状态机（快照排除归档，列表隐藏/不通知）
                     (frame as? HostFrame.ArchivedSessionsChanged)?.let {
-                        stateMachine.setArchivedSessionIds(it.archivedSessionIds)
+                        applyArchivedIds(it.archivedSessionIds)
                     }
                     // 模型/代理调用错误（额度用完/API失败）：发布为会话内错误事件供对话页显示，
                     // 状态机仍不通知（避免与错误提示叠加）
@@ -615,13 +647,25 @@ class EventStreamService : android.app.Service() {
                     }
                     // 需求：会话统计（底部信息栏）——sessionStats 投影解析发布
                     (frame as? MuxFrame.SessionProjection)?.let { proj ->
-                        if (proj.key == "sessionStats") {
-                            val v = proj.value as? kotlinx.serialization.json.JsonObject ?: return@let
-                            val stats = try {
-                                dev.dshmobile.model.DshJson.decodeFromJsonElement(
-                                    dev.dshmobile.model.SessionStats.serializer(), v)
-                            } catch (e: Exception) { return@let }
-                            DshRepository.publishSessionStats(proj.sessionId, stats)
+                        when (proj.key) {
+                            "sessionStats" -> {
+                                val v = proj.value as? kotlinx.serialization.json.JsonObject ?: return@let
+                                val stats = try {
+                                    dev.dshmobile.model.DshJson.decodeFromJsonElement(
+                                        dev.dshmobile.model.SessionStats.serializer(), v)
+                                } catch (e: Exception) { return@let }
+                                DshRepository.publishSessionStats(proj.sessionId, stats)
+                            }
+                            // 新版宿主的排队状态在 inbox 投影里（next-turn=排队、next-step=已插话），
+                            // 不再有 session/queue 帧；不接这个 key 时排队区永远为空、插话无回执。
+                            "inbox" -> {
+                                val inbox = proj.value as? kotlinx.serialization.json.JsonObject
+                                    ?: return@let
+                                DshRepository.publishSessionQueue(
+                                    proj.sessionId,
+                                    dev.dshmobile.model.QueueItem.fromInbox(inbox),
+                                )
+                            }
                         }
                     }
                     executeCommands(stateMachine.onMuxFrame(envelope.rpcId, frame))
@@ -692,10 +736,7 @@ class EventStreamService : android.app.Service() {
             is ApiResult.Ok -> {
                 DshRepository.publishWorkspaces(result.value.items)
                 // 归档集注入状态机（快照排除归档 → 列表隐藏/不通知）
-                synchronized(machineLock) {
-                    stateMachine.setArchivedSessionIds(result.value.archivedSessionIds)
-                    publishSnapshot()
-                }
+                applyArchivedIds(result.value.archivedSessionIds)
             }
             else -> Unit
         }
@@ -797,5 +838,9 @@ class EventStreamService : android.app.Service() {
 
         /** 全量对账轮询间隔（毫秒）：3s 兼顾实时观感与请求开销（新版无 WS 推送的替代方案）。 */
         private const val POLL_INTERVAL_MS = 3_000L
+
+        /** 归档会话集合的本地缓存（换行分隔）：仅供冷启动/断线期先隐藏，宿主下发后覆盖。 */
+        private const val PREFS = "dsh_event_stream"
+        private const val KEY_ARCHIVED_SESSION_IDS = "archived_session_ids"
     }
 }
