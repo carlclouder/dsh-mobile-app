@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import android.util.Log
 import java.util.UUID
 import kotlin.math.abs
@@ -101,6 +104,10 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     private val _currentModel = MutableStateFlow<dev.dshmobile.model.ModelSelection?>(null)
     val currentModel: StateFlow<dev.dshmobile.model.ModelSelection?> = _currentModel.asStateFlow()
 
+    /** 模型目录加载结果提示（null=正常）：失败时选择器给出可重试说明，不能只显示"目录为空"。 */
+    private val _modelsError = MutableStateFlow<String?>(null)
+    val modelsError: StateFlow<String?> = _modelsError.asStateFlow()
+
     // 挂起审批/提问/排队消息（必须在 init 之前声明：它们从 StateFlow collect，collect 会立即发当前值，
     // 若声明在 init 之后，Main.immediate 启动的协程会在字段未初始化前同步执行 → NPE。
     // 排队消息流改为 StateFlow 快照镜像后同样受此约束——这是"点会话闪退"bug 的根因）
@@ -156,6 +163,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         viewModelScope.launch { collectLiveEvents() }
         viewModelScope.launch { loadModels() }
         viewModelScope.launch { collectQueue() }
+        viewModelScope.launch { refreshQueueFromInbox() }
         viewModelScope.launch { collectStats() }
         viewModelScope.launch { collectApprovals() }
         viewModelScope.launch { collectQuestions() }
@@ -441,12 +449,33 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         // 排队区不再依赖"恰好有新帧"——插话/编辑/删除后的收敛完全由 host 回显驱动（对齐 WebUI）
         DshRepository.sessionQueue.collect { map ->
             val snapshot = map[sessionId] ?: emptyList()
-            // 只显示等待处理(queued)的项；steering(已插话待消费) 与 context(注入) 不当"排队中"显示
-            _queuedItems.value = snapshot.filter { it.placement == "queued" }
+            // queued=等待处理，steering=已插话待注入：两类都留在列表里。
+            // 若把 steering 过滤掉，插话成功后该项从界面消失、排队区整体消失，
+            // 用户没有任何"已插入"的证据（长会话里 agent 很久才消费，看起来像没插进去）。
+            // context（注入上下文）仍不展示，它不是用户消息。
+            _queuedItems.value = snapshot.filter { it.placement == "queued" || it.placement == "steering" }
             // 插话中标记的收敛：项已从会话队列整体消失（host 已消费/移除）→ 解除标记；
             // 仍以任意 placement 存在（如 steer 待消费）→ 保持禁用，防止重复插话
             val liveIds = snapshot.map { it.id }.toSet()
             _steeringItemIds.value = _steeringItemIds.value.filterTo(HashSet()) { it in liveIds }
+        }
+    }
+
+    /**
+     * 打开会话时主动拉一次 inbox 投影。
+     * mux 流只推增量：页面重建/冷启动时没有历史队列帧，排队区会一直空到下一次改动，
+     * 用户会把"已经排上队"误判成"插话失败"。拉不到就交给流推送，不打断页面。
+     */
+    private suspend fun refreshQueueFromInbox() {
+        when (val r = DshRepository.apiClient.sessionProjections(sessionId)) {
+            is ApiResult.Ok -> {
+                val inbox = r.value["inbox"] as? JsonObject ?: return
+                DshRepository.publishSessionQueue(
+                    sessionId,
+                    dev.dshmobile.model.QueueItem.fromInbox(inbox),
+                )
+            }
+            else -> Log.w(TAG, "拉取 inbox 投影失败，排队区以流推送为准")
         }
     }
 
@@ -456,7 +485,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
             when (DshRepository.apiClient.sessionUpdateQueue(
                 sessionId, itemId, DshRepository.apiClient.queueEditAction(newText),
             )) {
-                is ApiResult.Ok -> Unit
+                is ApiResult.Ok -> refreshQueueFromInbox()
                 else -> _actionError.value = "编辑失败：这条消息可能已经开始发送。"
             }
         }
@@ -468,7 +497,7 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
             when (DshRepository.apiClient.sessionUpdateQueue(
                 sessionId, itemId, DshRepository.apiClient.queueRemoveAction(),
             )) {
-                is ApiResult.Ok -> Unit
+                is ApiResult.Ok -> refreshQueueFromInbox()
                 else -> _actionError.value = "删除失败：这条消息可能已经开始发送。"
             }
         }
@@ -495,9 +524,9 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
             when (val r = DshRepository.apiClient.sessionUpdateQueue(
                 sessionId, itemId, DshRepository.apiClient.queueSteerAction(),
             )) {
-                // 受理成功：保持标记（等待 host 回显把该项移出队列后由 collectQueue 解除）；
-                // 若回显迟迟未到（极端网络），项仍在队列且按钮禁用——不会重复发送，代价可控。
-                is ApiResult.Ok -> Unit
+                // 受理成功：立即重拉 inbox，把该项从"排队"切到"已插话·待注入"（若宿主已推投影则幂等）；
+                // 保持标记，等 collectQueue 依回显解除——不回显时按钮仍禁用，不会重复发送。
+                is ApiResult.Ok -> refreshQueueFromInbox()
                 is ApiResult.BizError ->
                     if (r.code == "steer-unavailable" || r.code == "queue-item-not-found") {
                         // 未生效（回合窗口关闭/项已被消费）：解除标记——steer-unavailable 时项仍在队列，
@@ -516,16 +545,62 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         }
     }
 
-    /** 拉模型目录（首次/会话打开时机；失败不清空旧目录）。 */
+    /**
+     * 拉模型目录与当前选择（首次/会话打开时机；失败不清空旧目录）。
+     *
+     * 新版宿主的会话级模型目录接口是 session/modelCatalog（旧 session.models 已不存在），
+     * 当前选择由 modelSelection 投影下发（next=下一步将用，lastUsed=最近一次请求实际使用）。
+     * 两个来源分别取：目录失败不影响已有选择展示，选择读不到则保留旧值。
+     */
     fun loadModels() {
         viewModelScope.launch {
-            when (val r = DshRepository.apiClient.sessionModels(sessionId)) {
+            var loaded = false
+            val catalog = DshRepository.apiClient.sessionModelCatalog()
+            when (catalog) {
                 is ApiResult.Ok -> {
-                    _models.value = r.value
-                    _currentModel.value = r.value.current
+                    _models.value = catalog.value
+                    loaded = true
                 }
-                is ApiResult.BizError -> Log.w(TAG, "models biz: ${r.code}")
-                is ApiResult.NetError -> Log.w(TAG, "models net: ${r.throwable.message}")
+                is ApiResult.BizError -> Log.w(TAG, "modelCatalog biz: ${catalog.code}")
+                is ApiResult.NetError -> Log.w(TAG, "modelCatalog net: ${catalog.throwable.message}")
+            }
+            // 旧宿主兼容：新接口拿不到时退回旧 session.models（老版本 dsh 仍只有它）
+            if (!loaded) {
+                when (val r = DshRepository.apiClient.sessionModels(sessionId)) {
+                    is ApiResult.Ok -> {
+                        _models.value = r.value
+                        loaded = true
+                    }
+                    is ApiResult.BizError -> Log.w(TAG, "models biz: ${r.code}")
+                    is ApiResult.NetError -> Log.w(TAG, "models net: ${r.throwable.message}")
+                }
+            }
+            _modelsError.value = if (loaded) null else "模型目录加载失败"
+            // 新会话还没发出过消息，宿主没有 modelSelection 投影可读；
+            // 目录里的默认项就是这条会话实际会用的模型，用它兜底展示，
+            // 否则顶栏只显示"模型"占位（需求反馈第 4 条"模型按钮无任何模型信息"）。
+            if (_currentModel.value == null) {
+                _models.value?.current?.let { _currentModel.value = it }
+            }
+            when (val proj = DshRepository.apiClient.sessionProjections(sessionId)) {
+                is ApiResult.Ok -> {
+                    val selection = proj.value["modelSelection"] as? JsonObject
+                    val pick = (selection?.get("next") as? JsonObject)
+                        ?: (selection?.get("lastUsed") as? JsonObject)
+                    if (pick != null) {
+                        val provider = (pick["provider"] as? JsonPrimitive)?.contentOrNull
+                        val model = (pick["model"] as? JsonPrimitive)?.contentOrNull
+                        if (provider != null && model != null) {
+                            _currentModel.value = dev.dshmobile.model.ModelSelection(
+                                provider = provider,
+                                model = model,
+                                reasoningEffort = (pick["reasoningEffort"] as? JsonPrimitive)?.contentOrNull,
+                            )
+                        }
+                    }
+                }
+                is ApiResult.BizError -> Log.w(TAG, "modelSelection biz: ${proj.code}")
+                is ApiResult.NetError -> Log.w(TAG, "modelSelection net: ${proj.throwable.message}")
             }
         }
     }
@@ -533,12 +608,22 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
     /** 选择模型/推理等级。 */
     fun selectModel(provider: String, model: String, reasoningEffort: String?) {
         viewModelScope.launch {
+            val previous = _currentModel.value
             val pick = dev.dshmobile.model.ModelSelection(provider, model, reasoningEffort)
             _currentModel.value = pick   // 乐观更新
-            when (DshRepository.apiClient.sessionSelectModel(sessionId, provider, model, reasoningEffort)) {
-                is ApiResult.Ok -> Unit
-                is ApiResult.BizError -> Log.w(TAG, "selectModel biz")
-                is ApiResult.NetError -> Log.w(TAG, "selectModel net")
+            when (val r = DshRepository.apiClient.sessionSelectModel(sessionId, provider, model, reasoningEffort)) {
+                is ApiResult.Ok -> _actionError.value = null
+                is ApiResult.BizError -> {
+                    Log.w(TAG, "selectModel biz: ${r.code}")
+                    // 失败回滚：否则 chip 显示新模型、实际会话仍用旧模型，用户看不出切换没生效
+                    _currentModel.value = previous
+                    _actionError.value = "切换模型失败（${r.code}）"
+                }
+                is ApiResult.NetError -> {
+                    Log.w(TAG, "selectModel net: ${r.throwable.message}")
+                    _currentModel.value = previous
+                    _actionError.value = "切换模型失败：网络不可用"
+                }
             }
         }
     }
@@ -810,6 +895,8 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                         // 发送受理即标记"本机已发过消息"（本地事实）：列表立即豁免 blank 隐藏——
                         // 不等宿主 turn/start（数秒延迟）与推送帧（慢链路可能丢），返回列表即刻可见
                         DshRepository.markSessionPrompted(sessionId)
+                        // 运行中发送会排进 inbox 的 next-turn：立即重拉一次，让排队区马上有回执
+                        refreshQueueFromInbox()
                         if (wasRunning) {
                             // 保留既有排队提示：消息会在当前回合结束后执行。
                             _actionError.value = "已加入队列：当前回合运行中，这条消息会在回合结束后自动发送。"

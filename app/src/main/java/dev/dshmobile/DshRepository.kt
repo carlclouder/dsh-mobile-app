@@ -28,6 +28,13 @@ object DshRepository {
     /** 连接状态（列表页状态条三态 + 初始未知）。 */
     enum class ConnectionState { UNKNOWN, CONNECTED, RECONNECTING, UNREACHABLE }
 
+    /** 本地事实持久化（新建会话可见性用；与事件流快照的 prefs 分开，避免互相覆盖）。 */
+    private const val PREFS_NAME = "dsh_repository"
+    private const val KEY_LOCAL_CREATED_SESSIONS = "locally_created_sessions"
+    private const val MAX_LOCAL_CREATED_SESSIONS = 30
+
+    private var appContext: Context? = null
+
     lateinit var apiClient: DshApiClient
         private set
     lateinit var settingsStore: SettingsStore
@@ -165,9 +172,11 @@ object DshRepository {
     }
 
     /**
-     * 本机已成功发出首条消息的会话集合（修复"发送后返回列表不立即显示"）：
-     * 发送 RPC 受理即标记——这是客户端本地事实，不受宿主 agent 启动延迟（turn/start
-     * 落表需数秒）与慢链路丢帧影响。列表对"已标记的 blank 会话"豁免隐藏，
+     * 本机已确知"用户关心"的会话集合，列表对其中 blank 会话豁免隐藏：
+     * ① 本机已成功发出首条消息（修复"发送后返回列表不立即显示"）——发送 RPC 受理即标记，
+     *    这是客户端本地事实，不受宿主 agent 启动延迟（turn/start 落表需数秒）与慢链路丢帧影响；
+     * ② 本机新建会话成功（修复"新建返回后列表里找不到"）——新会话在发出消息前是 blank，
+     *    不标记就会按 blank 规则被隐藏。
      * 宿主随后转正（running 帧/baseline）即回归常规路径。进程内存活，重启后由宿主状态接管。
      */
     private val _promptMarkedSessions = MutableStateFlow<Set<String>>(emptySet())
@@ -175,6 +184,44 @@ object DshRepository {
 
     fun markSessionPrompted(sessionId: String) {
         _promptMarkedSessions.value = _promptMarkedSessions.value + sessionId
+    }
+
+    /**
+     * 本机新建会话的创建时刻（sessionId → 毫秒）。
+     * 宿主给新会话的 updatedAt 可能为 0（还没人提问），列表按更新时间排序时会沉到末尾、
+     * 且时间文案为空——用户从新建页返回后"找不到刚建的会话"。本机记下创建时刻，
+     * 排序与"刚刚"文案以它兜底（宿主随后有真实活动时间即被覆盖语义接管）。
+     * 落 SharedPreferences：进程重启后新建的 blank 会话仍要在列表里可见，否则又"消失"。
+     */
+    private val _locallyCreatedSessions = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val locallyCreatedSessions: StateFlow<Map<String, Long>> = _locallyCreatedSessions.asStateFlow()
+
+    fun markSessionCreatedLocally(sessionId: String) {
+        // 只保留最近 30 条：本地创建记录仅用于"新建会话可见 + 刚建排序"，
+        // 长期堆积会让列表豁免 blank 隐藏的集合无限增长
+        val merged = (_locallyCreatedSessions.value + (sessionId to System.currentTimeMillis()))
+            .entries.sortedByDescending { it.value }
+            .take(MAX_LOCAL_CREATED_SESSIONS)
+            .associate { it.key to it.value }
+        _locallyCreatedSessions.value = merged
+        persistLocallyCreatedSessions(merged)
+    }
+
+    private fun loadLocallyCreatedSessions(): Map<String, Long> {
+        val raw = appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(KEY_LOCAL_CREATED_SESSIONS, null) ?: return emptyMap()
+        return raw.lineSequence().mapNotNull { line ->
+            val sep = line.lastIndexOf(':')
+            if (sep <= 0) return@mapNotNull null
+            val millis = line.substring(sep + 1).toLongOrNull() ?: return@mapNotNull null
+            line.substring(0, sep) to millis
+        }.toMap()
+    }
+
+    private fun persistLocallyCreatedSessions(map: Map<String, Long>) {
+        val raw = map.entries.joinToString("\n") { "${it.key}:${it.value}" }
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()?.putString(KEY_LOCAL_CREATED_SESSIONS, raw)?.apply()
     }
 
     private val _sessions = MutableStateFlow<Map<String, NotificationStateMachine.SessionState>>(emptyMap())
@@ -191,6 +238,9 @@ object DshRepository {
         synchronized(this) {
             if (initialized) return
             settingsStore = SettingsStore(context.applicationContext)
+            appContext = context.applicationContext
+            // 恢复本机新建记录：进程重启后新建的 blank 会话仍要被列表显示
+            _locallyCreatedSessions.value = loadLocallyCreatedSessions()
             apiClient = DshApiClient(SettingsStore.DEFAULT_BASE_URL)
             // 新版 dsh 令牌认证适配：注册 Cookie 持久化（会话 Cookie 30 天内跨 App 重启复用）
             dev.dshmobile.network.DshAuthSession.attach(context.applicationContext)

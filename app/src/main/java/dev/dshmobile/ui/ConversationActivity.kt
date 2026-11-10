@@ -1227,6 +1227,7 @@ private fun ModelChip(viewModel: ConversationViewModel) {
 private fun ModelPickerSheet(viewModel: ConversationViewModel, onDismiss: () -> Unit) {
     val models by viewModel.models.collectAsState()
     val current by viewModel.currentModel.collectAsState()
+    val modelsError by viewModel.modelsError.collectAsState()
     ModalBottomSheet(onDismissRequest = onDismiss) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier
@@ -1238,7 +1239,14 @@ private fun ModelPickerSheet(viewModel: ConversationViewModel, onDismiss: () -> 
             Spacer(Modifier.height(8.dp))
             // 1) 模型区：供应商分组 → 模型；点模型即选中 provider+model，思考等级重置为该模型默认
             if (models?.groups.isNullOrEmpty()) {
-                Text("模型目录为空", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // 空目录分两种：加载失败（给重试）与确实没有可路由模型（说明原因），
+                // 都写成用户能判断的文案，避免只看到"模型目录为空"不知道下一步做什么
+                if (modelsError != null) {
+                    Text(modelsError!!, fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = { viewModel.loadModels() }) { Text("重新加载", fontSize = 13.sp) }
+                } else {
+                    Text("模型目录为空", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             } else {
                 models!!.groups.forEach { group ->
                     Text(group.name, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1352,12 +1360,18 @@ private fun QueuedMessages(viewModel: ConversationViewModel) {
     var editing by remember { mutableStateOf<dev.dshmobile.model.QueueItem?>(null) }
     // 默认折叠：排队列表只显标题+数量，展开才列明细，避免占满屏幕
     var expanded by remember { mutableStateOf(false) }
+    // 已插话待注入的项（placement=steering）：留在列表里做可见回执，不能编辑/删除/再插话
+    val steeringCount = queued.count { it.placement == "steering" }
     Column(modifier = androidx.compose.ui.Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(
             modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("排队中（${queued.size}）", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("排队消息（${queued.size}）", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (steeringCount > 0) {
+                Spacer(Modifier.width(6.dp))
+                Text("已插话 $steeringCount", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+            }
             if (!running) {
                 Spacer(Modifier.width(8.dp))
                 Text("仅运行中可插话", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1369,26 +1383,36 @@ private fun QueuedMessages(viewModel: ConversationViewModel) {
         }
         if (expanded) {
             queued.forEach { item ->
+                val injected = item.placement == "steering"
                 Column(modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     // 消息文本完整一行（不挤占按钮空间，避免被挤出屏幕）
                     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small,
                         modifier = androidx.compose.ui.Modifier.fillMaxWidth()) {
-                        Text(item.text, fontSize = 13.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            modifier = androidx.compose.ui.Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+                        Column(modifier = androidx.compose.ui.Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                            Text(item.text, fontSize = 13.sp,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            // 插话成功只改变 placement，不产生对话流气泡；这里给明确回执，
+                            // 否则长会话里用户要等很久才能确认"到底插进去没有"
+                            if (injected) {
+                                Text("已插话 · 待注入", fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = androidx.compose.ui.Modifier.padding(top = 2.dp))
+                            }
+                        }
                     }
                     // 按钮独立一行，紧凑排列（三个按钮自适应放一行，不抢文本横向空间）
                     Row(
                         modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(start = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { editing = item },
+                        // 已插话项由 host 持有，编辑/删除会被拒绝；直接禁用，避免点了没反应
+                        TextButton(onClick = { editing = item }, enabled = !injected,
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)) { Text("✎", fontSize = 13.sp) }
-                        TextButton(onClick = { viewModel.deleteQueued(item.id) },
+                        TextButton(onClick = { viewModel.deleteQueued(item.id) }, enabled = !injected,
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)) { Text("🗑", fontSize = 13.sp) }
                         // 插话（对齐 WebUI 每行"插话发送"）：把该排队项就地提升为 steer，host 在下一步边界消费；
                         // 仅运行中可点；插话中（已发出待回显）再点忽略并禁用——防止误连点发出两条同样的
-                        val itemSteering = item.id in steeringIds
+                        val itemSteering = injected || item.id in steeringIds
                         TextButton(
                             onClick = { viewModel.steer(item.id, item.text) },
                             enabled = running && !itemSteering,

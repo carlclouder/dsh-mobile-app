@@ -4,6 +4,10 @@ app/build/
 
 # Gradle cache
 .gradle/
+.kotlin/
+
+# Android SDK preferences (ANDROID_PREFS_ROOT，AGP 的 debug keystore/缓存落地目录)
+.android/
 
 # Local build toolchain (JDK17 / Android SDK / Gradle, installed by tools/setup_build_env.ps1)
 .toolchain/

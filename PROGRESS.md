@@ -11,9 +11,20 @@
 | 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
 | 设计文档 | 当前行为见 `docs/ARCHITECTURE.md` 及 `docs/requirements/`；`docs/DESIGN.md` 为历史设计 |
 | 产物根 | `<repo>\` |
-| 最后更新 | 2026-10-22：连续思考步骤默认折叠（连续无正文步骤折叠成一行、点开还原独立气泡、尾部组只滚动最新内容）；222项回归与双包构建通过，模拟器核心场景验收通过 |
-| 当前版本 | `app/version.properties` → versionCode=208 / versionName=0.1.207（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
+| 最后更新 | 2026-11-10：用户 5 条手机端反馈批量修复（归档会话重现、长会话插话无回执、新建会话列表消失、模型按钮空、排队区不显示插话）；222 项回归与 debug 构建通过，模拟器逐条截图验收 |
+| 当前版本 | `app/version.properties` → versionCode=214 / versionName=0.1.213（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
 | 单测 | 222/222 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+
+## 2026-11-10 手机端 5 条反馈批量修复（完成）
+
+- 用户反馈（原文）：①"app大量已归档会话显示突然目录"②"会话插入功能不顺畅长会话插入新对话不会显示，误认为没有插入成功"③"新建会话返回后会话列表仍然消失找不回来"④"模型按钮无任何模型信息显示"⑤"app插入会话 不显示插入列表，无法正确评估是否已经插入"。
+- ① 归档集合只由 `/api/remote.mux` 的 `workspace/follow` baseline 下发，流就绪前/断线期集合为空 → `NotificationStateMachine.snapshot` 不过滤 → 已归档会话整批回列表。修复：归档集合落 `dsh_event_stream` prefs（`archived_session_ids`，换行分隔），`EventStreamService.onCreate` 先注入上次集合；`applyArchivedSet`/`ArchivedSessionsChanged`/REST 兜底三处统一走 `applyArchivedIds`（状态机 + 落盘 + 刷新快照）。
+- ②⑤ 同源：新版宿主不再下发 `session/queue` 帧，排队状态改由 **`inbox` 投影**承载（`{"next-turn":[…],"next-step":[…]}`，项无 placement 字段）。App 只解析旧帧 → 排队区永远为空、插话无回执。修复：`QueueItem.fromInbox()` 把 next-turn 映射 queued、next-step 映射 steering；`EventStreamService` 的 `SessionProjection` 分支新增 `inbox` key；`ConversationViewModel` 进页面主动拉一次 `session/projections`，编辑/删除/插话/发送成功后各重拉一次；steering 项保留在排队区并标「已插话 · 待注入」，禁用编辑/删除/再插话。
+- ③ 双因：列表过滤 `(!blank || key in prompted)` 只认内存标记，进程重启即丢；且组内按标题排序，同名「AI任务」会话把新建项淹没。修复：`DshRepository.markSessionCreatedLocally` 把本机新建的 id+时刻落 `dsh_repository` prefs（最多 30 条），列表过滤豁免这些 blank 会话；组内改按最近活动倒序、时间用"宿主 updatedAt 与本机创建时刻取大者"兜底显示「刚刚」。
+- ④ 旧接口 `session.models` 在现宿主 404；目录改走 `session/modelCatalog`（返回 default/groups/failures），当前选择读 `modelSelection` 投影（next 优先、其次 lastUsed）；新会话无投影时用目录默认项兜底，切换失败回滚并提示，目录加载失败给「重新加载」按钮。
+- 验证：`testDebugUnitTest` 222/222；`assembleDebug` 0.1.213（214）。模拟器（emulator-5554）实测：模型面板显示 DeepSeek/DeepSeek Account 分组与思考等级、顶栏显示 `official/deepseek-f`；新建会话返回列表顶部显示「AI任务 · 刚刚」；杀进程重启后仍在；排队区显示「排队消息（1）」→ 点⚡插话后变「已插话 1 / 已插话 · 待注入」；发送插话即时出现「已加入队列」气泡。归档集合落盘 30 条与宿主 baseline 一致。
+- 环境限制：手机端连本机需用 auth-gateway 免令牌入口 `http://10.0.2.2:3081`（3080 要一次性令牌，App 直连 401）。
+
 
 ## 2026-10-22 连续思考步骤默认折叠（完成）
 

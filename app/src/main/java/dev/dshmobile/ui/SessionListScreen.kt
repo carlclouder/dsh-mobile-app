@@ -79,6 +79,8 @@ class SessionListViewModel : ViewModel() {
         val group: Group,
         val relativeText: String,
         val runningSinceMillis: Long?,
+        /** 排序用时间戳（毫秒）：宿主 updatedAt 与本机创建时刻取大者；0 表示两者都没有。 */
+        val sortMillis: Long,
     )
 
     enum class Group { RUNNING, WAITING, IDLE }
@@ -106,11 +108,16 @@ class SessionListViewModel : ViewModel() {
         val selected = _selectedWorkspaceId.value
         val selectedPaths = workspaces.filter { it.workspaceId == selected }.map { it.path }.toSet()
         val prompted = DshRepository.promptMarkedSessions.value
+        val createdLocally = DshRepository.locallyCreatedSessions.value
         return snapshot.entries
             .asSequence()
             // §5.4 过滤：blank 与 subagent 隐藏。两类豁免：①本机已成功发出过消息的 blank 会话
-            //（本地事实，立即可见——不等宿主 turn/start 与推送帧）②running 清 blank 后自然转正。
-            .filter { (!it.value.blank || it.key in prompted) && it.value.origin != "subagent" }
+            //（本地事实，立即可见——不等宿主 turn/start 与推送帧）②本机新建且未发消息的会话
+            //（持久化创建记录，进程重启后仍要可见，否则用户「找不回来」）。
+            .filter {
+                (!it.value.blank || it.key in prompted || it.key in createdLocally) &&
+                    it.value.origin != "subagent"
+            }
             .filter { row ->
                 selected == null ||
                     selectedPaths.contains(row.value.cwd)   // 选中工作区时只看匹配 path 的会话
@@ -122,6 +129,9 @@ class SessionListViewModel : ViewModel() {
                         (nowMillis - state.updatedAt) < SEVEN_DAYS_MILLIS -> Group.WAITING
                     else -> Group.IDLE
                 }
+                // 宿主还没给新会话 updatedAt 时，用本机创建时刻兜底：
+                // 否则时间文案为空、排序沉底，用户从新建页返回后找不到刚建的会话
+                val effectiveMillis = maxOf(state.updatedAt, (createdLocally[sessionId] ?: 0L).toDouble())
                 Row(
                     sessionId = sessionId,
                     title = state.title?.takeIf { it.isNotBlank() }
@@ -129,11 +139,14 @@ class SessionListViewModel : ViewModel() {
                         ?: "未命名会话",
                     cwd = state.cwd.orEmpty(),
                     group = group,
-                    relativeText = relativeTime(state.updatedAt, nowMillis),
+                    relativeText = relativeTime(effectiveMillis, nowMillis),
                     runningSinceMillis = state.localRunningSinceMillis,
+                    sortMillis = effectiveMillis.toLong(),
                 )
             }
-            .sortedWith(compareBy({ it.group.ordinal }, { it.title }))
+            // 组内按最近活动倒序：同组里一堆同名"AI任务"会话时，按标题排会让刚建的会话
+            // 淹没在中间（用户误判"消失"）；最近活跃在前才符合会话列表直觉。
+            .sortedWith(compareBy({ it.group.ordinal }, { -it.sortMillis }))
             .toList()
     }
 
@@ -167,6 +180,12 @@ class SessionListViewModel : ViewModel() {
             try {
                 when (val r = DshRepository.apiClient.sessionCreate(cwd)) {
                     is dev.dshmobile.model.ApiResult.Ok -> {
+                        // 本机新建的会话此刻还是 blank（没有消息、宿主 turn 也没开始），
+                        // 列表默认隐藏 blank 会话。若不记下这个本地事实，用户新建后返回列表
+                        // 会看不到它、误以为创建失败（需求反馈第 3 条）。
+                        DshRepository.markSessionPrompted(r.value)
+                        // 同时记创建时刻：宿主 updatedAt 尚未落表时，用它显示"刚刚"并排到组内最前
+                        DshRepository.markSessionCreatedLocally(r.value)
                         DshRepository.requestManualRefresh()
                         _operationTick.value++
                         onCreated(r.value)
