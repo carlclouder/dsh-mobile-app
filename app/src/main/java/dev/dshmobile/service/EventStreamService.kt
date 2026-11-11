@@ -113,6 +113,11 @@ class EventStreamService : android.app.Service() {
                 stateMachine.setArchivedSessionIds(cachedArchived)
             }
         }
+        // 本机新建会话的 host 缺席豁免：先把持久化记录注入状态机，
+        // 之后由 collectLocallyCreatedSessions 跟随仓库变化同步。
+        synchronized(machineLock) {
+            stateMachine.setLocallyCreatedSessionIds(DshRepository.locallyCreatedSessions.value.keys)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -144,6 +149,15 @@ class EventStreamService : android.app.Service() {
             }
             launch {
                 DshRepository.interactionSubmittedEvents.collect { target -> interactionStream.submitted(target) }
+            }
+            // 本机新建会话集合变化（新建/裁剪）后同步给状态机，
+            // 使基线对账与 remove 帧都保留这些 id（见 NotificationStateMachine.onBaseline）
+            launch {
+                DshRepository.locallyCreatedSessions.collect { map ->
+                    synchronized(machineLock) {
+                        stateMachine.setLocallyCreatedSessionIds(map.keys)
+                    }
+                }
             }
         }
         startStreams()
@@ -704,7 +718,7 @@ class EventStreamService : android.app.Service() {
                 synchronized(machineLock) {
                     if (DshRepository.apiClient.generation() != generationAtRequest) return@synchronized
                     executeCommands(stateMachine.onInteractionHostGeneration(generationAtRequest))
-                    executeCommands(stateMachine.onBaseline(result.value))
+                    executeCommands(stateMachine.onBaseline(result.value, DshRepository.locallyCreatedSessions.value.keys))
                     if (stateMachine.interactionRevision() == interactionsAtRequest) {
                         for (session in result.value) {
                             session.projections?.let { projections ->

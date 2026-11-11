@@ -60,6 +60,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -1212,8 +1213,19 @@ private fun MicButton(onText: (String) -> Unit) {
 @Composable
 private fun ModelChip(viewModel: ConversationViewModel) {
     val current by viewModel.currentModel.collectAsState()
+    val models by viewModel.models.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
-    val label = current?.let { "${it.provider.split('-').lastOrNull() ?: it.provider}/${it.model.take(10)}" } ?: "模型"
+    // 顶栏与 WebUI 对齐：显示模型显示名（而不是截断的 provider/model id）+ 当前思考等级，
+    // 用户一眼能看出这条会话实际用什么跑（2026-11-12 反馈第 4 条）。
+    val modelEntry = models?.groups
+        ?.firstOrNull { it.id == current?.provider }
+        ?.models?.firstOrNull { it.id == current?.model }
+    val effortName = modelEntry?.reasoning?.efforts
+        ?.firstOrNull { it.id == current?.reasoningEffort }?.name
+    val label = when {
+        current == null -> "模型"
+        else -> listOfNotNull(modelEntry?.name ?: current?.model, effortName).joinToString(" · ")
+    }
     TextButton(onClick = { showPicker = true }) {
         Text("◆ $label", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -1228,6 +1240,11 @@ private fun ModelPickerSheet(viewModel: ConversationViewModel, onDismiss: () -> 
     val models by viewModel.models.collectAsState()
     val current by viewModel.currentModel.collectAsState()
     val modelsError by viewModel.modelsError.collectAsState()
+    // 打开面板时目录仍为空就再拉一次：用户主动点开选择器，是最明确的"我现在需要它"信号，
+    // 不该让面板停在"模型目录为空/加载失败"上（2026-11-12 反馈第 4 条）。
+    LaunchedEffect(Unit) {
+        if (models?.groups.isNullOrEmpty()) viewModel.loadModels()
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier

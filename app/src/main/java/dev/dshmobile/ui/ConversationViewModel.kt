@@ -162,6 +162,18 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
         viewModelScope.launch { loadHistoryIfIdle() }
         viewModelScope.launch { collectLiveEvents() }
         viewModelScope.launch { loadModels() }
+        // 模型目录自动补拉（2026-11-12 反馈第 4 条）：页面初始化时连接可能尚未恢复，
+        // 首次请求失败后旧实现只能靠用户点"重新加载"。连接恢复且目录仍空时自动重来一次，
+        // 使面板与 WebUI 一样在连上后自然显示模型，而不是一直停在"模型"占位。
+        viewModelScope.launch {
+            DshRepository.connectionState.collect { state ->
+                if (state == DshRepository.ConnectionState.CONNECTED &&
+                    _models.value?.groups.isNullOrEmpty()
+                ) {
+                    loadModels()
+                }
+            }
+        }
         viewModelScope.launch { collectQueue() }
         viewModelScope.launch { refreshQueueFromInbox() }
         viewModelScope.launch { collectStats() }
@@ -601,6 +613,20 @@ class ConversationViewModel(private val sessionId: String) : ViewModel() {
                 }
                 is ApiResult.BizError -> Log.w(TAG, "modelSelection biz: ${proj.code}")
                 is ApiResult.NetError -> Log.w(TAG, "modelSelection net: ${proj.throwable.message}")
+            }
+            // 思考等级兜底（反馈第 4 条"思考等级为空"）：会话投影里的 modelSelection 常常只带
+            // provider/model（新会话、旧记录），没有 reasoningEffort；WebUI 此时展示该模型的默认等级。
+            // 不补这一层，面板里就没有任何一个等级处于选中态，看起来像"空的"。
+            _currentModel.value?.let { cur ->
+                if (cur.reasoningEffort == null) {
+                    val defaultEffort = _models.value?.groups
+                        ?.firstOrNull { it.id == cur.provider }
+                        ?.models?.firstOrNull { it.id == cur.model }
+                        ?.reasoning?.defaultEffort
+                    if (defaultEffort != null) {
+                        _currentModel.value = cur.copy(reasoningEffort = defaultEffort)
+                    }
+                }
             }
         }
     }
