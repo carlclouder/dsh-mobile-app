@@ -99,6 +99,18 @@ class NotificationStateMachine(
     /** 已归档会话集合（需求 2.9.3：不显示、不通知）。由 service 从 workspace.list / archived-sessions-changed 注入。 */
     private val archivedSessionIds = HashSet<String>()
 
+    /**
+     * 本机新建会话 id 集合（服务从 DshRepository.locallyCreatedSessions 同步）。
+     * 宿主会裁掉没有任何消息的 blank 会话，baseline 快照与 remove 帧都不能把它删掉，
+     * 否则"新建 → 返回列表 → 数秒后行消失"（2026-11-12 反馈第 3 条）。
+     */
+    private val locallyCreatedSessionIds = HashSet<String>()
+
+    fun setLocallyCreatedSessionIds(ids: Collection<String>) {
+        locallyCreatedSessionIds.clear()
+        locallyCreatedSessionIds.addAll(ids)
+    }
+
     /** 注入归档集（service 在 baseline 与 host 帧时调用）。 */
     fun setArchivedSessionIds(ids: Collection<String>) {
         archivedSessionIds.clear()
@@ -122,7 +134,7 @@ class NotificationStateMachine(
      * baseline 合并：首次调用 = 冷启动（全程静默）；之后每次调用 = 断连重连后的
      * 快照对账，落入 prev==true && 快照==false 的会话**补发**通知（P1 修正）。
      */
-    fun onBaseline(items: List<SessionSummary>): List<Command> {
+    fun onBaseline(items: List<SessionSummary>, keepSessionIds: Set<String> = emptySet()): List<Command> {
         val commands = mutableListOf<Command>()
         val now = clock()
         for (item in items) {
@@ -157,8 +169,15 @@ class NotificationStateMachine(
         }
         coldStart = false
         // 终审 P2-10：session.list 是权威全量（实测含 running/subagent 会话），
-        // 快照中不在列表的会话 = 断连窗口内已消失 → 清除防幽灵（保留在列表的会话原样）
+        // 快照中不在列表的会话 = 断连窗口内已消失 → 清除防幽灵（保留在列表的会话原样）。
+        // 例外（2026-11-12 修复"新建会话数秒后消失"）：宿主会把没有任何消息的 blank 新会话
+        // 从 session/list 里裁掉（实测 create 后约 10 秒即消失，但仍可按 id 查询投影/历史）。
+        // 本机新建的会话是客户端已确知的事实，必须保留，否则列表行建完就丢。
         val liveIds = items.mapTo(HashSet()) { it.sessionId }
+        // 只长期豁免"还没有任何消息的 blank 新会话"：一旦宿主把它转正（blank=false），
+        // 就回到常规的权威列表语义，避免用户真在别处删掉会话后这里永远留一条幽灵行。
+        liveIds += keepSessionIds.filter { sessions[it]?.blank == true }
+        liveIds += locallyCreatedSessionIds.filter { sessions[it]?.blank == true }
         sessions.keys.retainAll(liveIds)
         return commands
     }
@@ -187,7 +206,15 @@ class NotificationStateMachine(
                 emptyList()
             }
             is HostFrame.SessionRemoved -> {
-                sessions.remove(frame.sessionId)
+                // 本机新建的会话被移除时保留（与 baseline 豁免同一理由）：宿主会清理 blank 会话，
+                // 移除帧若照删，列表里"刚建好就消失"的问题会从另一条路径复发。
+                // 用户主动归档的会话仍由 archivedSessionIds 过滤，不会因此重现。
+                if (frame.sessionId !in locallyCreatedSessionIds ||
+                    sessions[frame.sessionId]?.blank != true ||
+                    archivedSessionIds.contains(frame.sessionId)
+                ) {
+                    sessions.remove(frame.sessionId)
+                }
                 emptyList()
             }
             // agent 错误走列表徽标不弹通知（设计 §5.2：避免与完成通知叠加）；workspace/archived/remote 帧由 Repository 层消费

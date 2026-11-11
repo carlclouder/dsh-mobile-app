@@ -64,9 +64,9 @@ import kotlinx.coroutines.launch
  * 会话列表页（设计 §5.4）：三态分组（跑动中/等你输入/空闲），
  * 隐藏 blank 与 subagent 会话，顶部连接状态条，手动刷新，FAB 新建会话。
  *
- * 分组规则（§3.3 时间语义校准）：
+ * 分组规则（2026-11-12 对齐 WebUI 修正）：
  * - 跑动中：running == true，绿点，显示"约 X 分钟"（本地翻转时刻近似）
- * - 等你输入：running == false 且 7 天内有提问（updatedAt 语义=最近人类 prompt 时间）
+ * - 等你输入：宿主有挂起的审批或提问（pendingApprovals / pendingQuestions 含该会话）
  * - 空闲：其余，灰点
  */
 class SessionListViewModel : ViewModel() {
@@ -109,6 +109,11 @@ class SessionListViewModel : ViewModel() {
         val selectedPaths = workspaces.filter { it.workspaceId == selected }.map { it.path }.toSet()
         val prompted = DshRepository.promptMarkedSessions.value
         val createdLocally = DshRepository.locallyCreatedSessions.value
+        // "等你输入"的真实判据：宿主确有挂起审批或提问在等这端回答。
+        // 旧实现用"7 天内有更新"当判据，把几乎所有会话都塞进这一组（2026-11-12 反馈：
+        // 大量早已过时的会话堆在"等你输入"，与 WebUI 只对真待办提示的行为不一致）。
+        val waitingForAnswer = DshRepository.pendingApprovals.value.keys +
+            DshRepository.pendingQuestions.value.keys
         return snapshot.entries
             .asSequence()
             // §5.4 过滤：blank 与 subagent 隐藏。两类豁免：①本机已成功发出过消息的 blank 会话
@@ -125,8 +130,7 @@ class SessionListViewModel : ViewModel() {
             .map { (sessionId, state) ->
                 val group = when {
                     state.running -> Group.RUNNING
-                    state.updatedAt > 0 &&
-                        (nowMillis - state.updatedAt) < SEVEN_DAYS_MILLIS -> Group.WAITING
+                    sessionId in waitingForAnswer -> Group.WAITING
                     else -> Group.IDLE
                 }
                 // 宿主还没给新会话 updatedAt 时，用本机创建时刻兜底：
@@ -270,10 +274,6 @@ class SessionListViewModel : ViewModel() {
         }
     }
 
-    companion object {
-        /** 7 天窗口（毫秒；updatedAt 为毫秒，终审 P0-2）。 */
-        private const val SEVEN_DAYS_MILLIS = 7.0 * 86400 * 1000
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -296,7 +296,14 @@ fun SessionListScreen(viewModel: SessionListViewModel = viewModel()) {
     val operationTick = viewModel.operationTick.collectAsState().value
     // 本机已发过消息的会话集合（blank 豁免依据）：变化时重算行——发送受理后返回列表立即生效
     val promptedSessions = DshRepository.promptMarkedSessions.collectAsState().value
-    val rows = remember(sessions, nowMillis, workspaces, viewModel.selectedWorkspaceId.collectAsState().value, operationTick, promptedSessions) {
+    // 本机新建会话（宿主裁掉 blank 会话时靠它保留列表行）与真待办集合：任一处变化都必须重算行
+    val locallyCreatedSessions = DshRepository.locallyCreatedSessions.collectAsState().value
+    val pendingApprovals = DshRepository.pendingApprovals.collectAsState().value
+    val pendingQuestions = DshRepository.pendingQuestions.collectAsState().value
+    val rows = remember(
+        sessions, nowMillis, workspaces, viewModel.selectedWorkspaceId.collectAsState().value,
+        operationTick, promptedSessions, locallyCreatedSessions, pendingApprovals, pendingQuestions,
+    ) {
         viewModel.rowsFrom(sessions, nowMillis, workspaces)
     }
     val refreshing by viewModel.refreshing.collectAsState()

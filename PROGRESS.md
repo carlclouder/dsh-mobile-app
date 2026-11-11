@@ -11,9 +11,21 @@
 | 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
 | 设计文档 | 当前行为见 `docs/ARCHITECTURE.md` 及 `docs/requirements/`；`docs/DESIGN.md` 为历史设计 |
 | 产物根 | `<repo>\` |
-| 最后更新 | 2026-11-10：用户 5 条手机端反馈批量修复（归档会话重现、长会话插话无回执、新建会话列表消失、模型按钮空、排队区不显示插话）；222 项回归与 debug 构建通过，模拟器逐条截图验收 |
-| 当前版本 | `app/version.properties` → versionCode=214 / versionName=0.1.213（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
-| 单测 | 222/222 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+| 最后更新 | 2026-11-12：修复用户反馈的三处未修复项（新建会话数秒消失、模型/思考等级面板空、"等你输入"分组误报）；228 项单测通过，模拟器 0.1.222 实测并录 GIF 证据 |
+| 当前版本 | `app/version.properties` → versionCode=223 / versionName=0.1.222（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
+| 单测 | 228/228 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+
+## 2026-11-12 三处未修复缺陷补修（完成）
+
+- 用户反馈（原文）："3、4 依然没修复；3、退回瞬间存在，过几秒后消失；4、模型和思考等级依然为空 没有和webui对应"；"app出现大量等待输入的会话，大部分已归档或早已过时，严重干扰使用，和webui行为没对齐"；交付要求"修完本地测试清楚 别没修却瞎说修完了，gif证据"。
+- ③ 新建会话消失，宿主侧实证：`session/create` 建的 `blank:true` 空会话只在 `session/list` 停留约 10 秒（t0 在、t+12s 与 t+42s 已不在）；App `NotificationStateMachine.onBaseline` 末尾 `retainAll(liveIds)` 直接删除宿主缺席会话。修复：`onBaseline(items, keepSessionIds)` 把"宿主缺席但仍是 blank 的本地新建会话"并入 `liveIds`；`SessionRemoved` 帧同样只豁免"本地新建且仍 blank"的会话（已转正/已归档照常删除，避免幽灵行）；本地创建集合由 `DshRepository.locallyCreatedSessions` 流实时注入，进程重启有效。
+- ⑤ "等你输入"误报，旧判据是"7 天内有更新"（217 条里 134 条命中，与是否等用户无关）。修复：仅当该会话存在挂起审批 `pendingApprovals` 或挂起提问 `pendingQuestions` 才进该组；运行中单独成组，其余为"空闲"。
+- ④ 模型/思考等级为空：宿主 `session/modelCatalog` 实测正常（default `deepseek-official/deepseek-flash` + effort `high`，DeepSeek / DeepSeek Account 两组）。修复：连接恢复且目录为空时自动重载；打开模型面板时目录为空自动重载；当前选择缺失时用目录 `default`，思考等级缺失时用该模型 `reasoning.defaultEffort` 兜底；顶栏 chip 改为"模型显示名 · 思考等级"（对齐 WebUI）。
+- 测试：新增 `SessionListBehaviorTest`（6 项），全量 228 项通过；`assembleDebug`/`assembleRelease` 成功，0.1.222（223）。
+- 设备验收（emulator-5554，App 连 `http://10.0.2.2:3081`）：列表"跑动中 1 / 空闲 140"，无"等你输入"分组；新建会话返回后 20 秒仍在首行，多次覆盖安装后仍在；chip 显示 `◆ DeepSeek-V4.1-Flash · High`；模型面板两组模型 + Off/Low/High(选中)/Max。
+- 证据：[验收说明](test-evidence/2026-11-12-mobile-3fixes/README.md)、`01-session-create-persist.gif`、`02-model-picker.gif`、`03-list-after-20s.png`、`04-chip-aligned.png`、`05-model-groups.png`、`06-reasoning-levels.png`。
+- 未覆盖：真机、跨设备归档同步；"等你输入"分组仅有单测覆盖（本次运行态无待办会话）。
+
 
 ## 2026-11-10 手机端 5 条反馈批量修复（完成）
 
