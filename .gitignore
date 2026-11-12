@@ -1,6 +1,13 @@
 # Build outputs
-build/
-app/build/
+/build/
+# app/build 整体忽略，但发布包输出目录（app/build/outputs/apk/release）随仓库保存
+# （用户 2026-11-12 要求：发布包要随 git 推送，不能当作构建垃圾清掉）
+app/build/*
+!app/build/outputs/
+app/build/outputs/*
+!app/build/outputs/apk/
+app/build/outputs/apk/*
+!app/build/outputs/apk/release/
 
 # Gradle cache
 .gradle/
