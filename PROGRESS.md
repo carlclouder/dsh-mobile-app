@@ -21,6 +21,19 @@
 - Android 35 模拟器验证：首次默认、双皮肤切换及重启恢复、两种皮肤下会话列表与历史、模型面板打开和返回关闭。正式签名包从 v0.1.222 覆盖升级并启动。业务回归使用隔离数据，未连接生产宿主，未做真机验证。
 - Debug/Release 构建与正式签名验证通过。按仓库惯例由 [release/](release/) 留存版本 APK 与 [SHA-256](release/SHA256SUMS)，不覆盖历史版本。构建输出目录仅保留当前版本命名包和 `app-release.apk`，旧包回退请用 `release/` 的归档。
 
+### 验证记录
+
+v0.1.223 的构建、签名和模拟器验收记录见上文。根目录 `ws_after.png`、`ws_ok.png` 和 `docs/screenshots/` 内未标 v0.1.223 的图片为旧版证据。README 的四张新版截图来自与 v0.1.223 相同界面源码的 Debug 包，由 Android 模拟器连接隔离测试数据截取，不是签名发布包的截图。
+
+下列历史记录适用于各自的版本，不能替代当前版本或其他部署环境的验收：
+
+- [消息顺序与结束状态的连续GIF、测试结果和验证边界](test-evidence/message-order-20261021/README.md)
+- [铠甲鲸鱼图标的设备验收](test-evidence/launcher-icon-20261021/README.md)
+- [实时思考的 GIF、测试结果与验证边界](test-evidence/thinking-preview-20261021/README.md)
+- [已有提问可见、App 回答及队列继续的 GIF 证据](test-evidence/pending-interactions-20261020/README.md)
+
+实时思考的详细动画记录对应 v0.1.190（175 项测试）。
+
 ## 2026-11-12 三处未修复缺陷补修（完成）
 
 - 用户反馈（原文）："3、4 依然没修复；3、退回瞬间存在，过几秒后消失；4、模型和思考等级依然为空 没有和webui对应"；"app出现大量等待输入的会话，大部分已归档或早已过时，严重干扰使用，和webui行为没对齐"；交付要求"修完本地测试清楚 别没修却瞎说修完了，gif证据"。
