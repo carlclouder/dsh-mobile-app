@@ -59,7 +59,7 @@ Serve 的目标由部署配置决定。直连本体、经过反向代理是不�
 | [cordis.patch.yml](../tools/dsh-auth-gateway/cordis.patch.yml) | 加载插件的 bundle patch |
 | [install-auth-gateway.ps1](../tools/install-auth-gateway.ps1) | 安装/修复脚本，作用于指定 DSH 用户目录 |
 
-当前源码包版本以 `package.json` 为准，仓库同时保留历史 tgz；不能因为某个旧包文件存在就认定它与当前源码一致。
+当前源码包版本以 `package.json` 为准。建议使用 [1.1.2 安装包](../tools/dsh-auth-gateway/dsh-auth-gateway-1.1.2.tgz) 并核对 [SHA-256](../tools/dsh-auth-gateway/SHA256SUMS)；该版本只更新随包说明，插件实现与配置和 1.1.1 相同。历史包不能视为当前源码的构建结果。
 
 安装前先确认 `DSH_HOME` 和目标 profile，在隔离环境验证兼容性。已确认目标后，可使用 DSH 插件命令安装明确的 tgz：
 

@@ -12,7 +12,7 @@ DSH 进程内认证网关。它加载在宿主的 `connection` 服务上，保�
 | [lib/index.mjs](lib/index.mjs) | 配置、认证处理、HTTP 与 WebSocket 转发 |
 | [cordis.patch.yml](cordis.patch.yml) | 将 id 为 `auth-gateway` 的插件加入 profile |
 
-插件由 DSH 管理生命周期，不创建独立常驻进程或计划任务。它不管理 Serve、桌面启动脚本或其他服务。目录中的历史 tgz 不会随着 Markdown 或源码编辑自动重打包。
+插件由 DSH 管理生命周期，不创建独立常驻进程或计划任务。它不管理 Serve、桌面启动脚本或其他服务。1.1.2 只更新随包说明，不改插件实现或配置。请使用 1.1.2 或更新的已审核包；历史安装包不要当作当前源码的产物。
 
 ## 实际行为
 
