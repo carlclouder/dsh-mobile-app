@@ -47,7 +47,7 @@ DSH Mobile 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 
 **v0.1.223（版本号 224）**：230 项单测全部通过，Debug/Release 构建及正式签名校验通过。Android 35 模拟器验证了双皮肤切换、重启保留、会话列表及历史、模型面板打开和返回关闭，以及由正式签名 v0.1.222 覆盖升级并启动。业务场景使用隔离数据，未连接生产宿主，也未进行真机验证。
 
-以下是历史版本验收记录，验证范围以各次记录为准：
+以下是历史版本验收记录，验证范围以各次记录为准。根目录的 `ws_after.png` 和 `ws_ok.png` 是 2026-10-10 工作区同步修复的历史截图，不代表 v0.1.223 外观。
 
 - [消息顺序与结束状态的连续GIF、测试结果和验证边界](test-evidence/message-order-20261021/README.md)
 - [铠甲鲸鱼图标的设备验收](test-evidence/launcher-icon-20261021/README.md)
