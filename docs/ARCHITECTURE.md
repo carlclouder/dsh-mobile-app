@@ -1,6 +1,6 @@
 # DSH Mobile 当前架构
 
-> 对齐日期：2026-11-24。本文描述当前源码和运行路径。[DESIGN.md](DESIGN.md) 保留早期设计及迁移过程，不能作为当前部署步骤。功能操作见 [USAGE](../USAGE.md)，验收记录见[实时思考](../test-evidence/thinking-preview-20261021/README.md)及[现代交互](../test-evidence/pending-interactions-20261020/README.md)。
+> 对齐日期：2026-11-24。本文对应 v0.1.223（versionCode 224）的源码和运行路径。[DESIGN.md](DESIGN.md) 保留早期设计及迁移过程，不能作为当前部署步骤。功能操作见 [USAGE](../USAGE.md)，验收记录见[实时思考](../test-evidence/thinking-preview-20261021/README.md)及[现代交互](../test-evidence/pending-interactions-20261020/README.md)。
 
 ## 1. 系统边界
 
@@ -22,7 +22,7 @@ App 不提供模型服务配置、账户配对或文件上传管理。语音输�
 | 层与模块 | 职责 |
 | --- | --- |
 | Compose 页面 | 列表、设置、对话、交互卡、队列、折叠内容和滚动行为 |
-| Compose 外观层 | 冰蓝光幕（默认）与极光舱的配色、材质和短动效；皮肤不控制业务状态、导航或宿主接口 |
+| `Theme.kt`（Compose 外观层） | 冰蓝光幕（默认）与极光舱的配色、材质和短动效；皮肤不控制业务状态、导航或宿主接口 |
 | `ConversationViewModel` | 当前会话的历史合并、发送、队列、交互草稿、统计及思考连接生命周期 |
 | `DshRepository` | 进程级客户端、设置与状态流，连接前台服务和页面 |
 | `EventStreamService` | 前台服务，周期对账列表，维持工作区及现代交互连接，执行通知指令 |
@@ -32,6 +32,8 @@ App 不提供模型服务配置、账户配对或文件上传管理。语音输�
 | `ThinkingPreviewState` | 校验修订号与原始片段序号，归约活动尝试的思考文本 |
 | `DshApiClient` / `DshAuthSession` | 请求封装、协议兼容、地址世代、套接字登记及 Cookie 认证 |
 | `SettingsStore` | 服务器地址、通知开关和外观偏好持久化 |
+
+`AppearancePreference` 对外观标识做归一化：`aurora` 保留，旧值、未知值和未设置状态显示默认的冰蓝光幕；`SettingsStore` 继续使用原 DataStore 键。有限的界面装饰动效遵循系统动画时长设置，不改变导航、手势和业务事件。
 
 服务与页面通过 `StateFlow` 和 `SharedFlow` 交换状态及事件，避免直接持有对方界面对象。通知判断与网络传输分开；思考预览与已落定消息分开，防止预览被重复并入历史和统计。
 
