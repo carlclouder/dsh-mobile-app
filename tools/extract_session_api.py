@@ -2,7 +2,7 @@
 import os
 import re
 
-ROOT = r"C:\Users\example-user\AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai"
+ROOT = os.path.join(os.environ["DSH_LOCAL_HOME"], r"AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai")
 KEYS = ["sessionApi = ", "workspaceApi = ", "const sessionApi", "function prompt",
         "sessionApi.prompt", "updateQueue(", "history("]
 

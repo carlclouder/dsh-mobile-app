@@ -2,7 +2,7 @@
 import os
 import re
 
-ROOT = r"C:\Users\example-user\AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai"
+ROOT = os.path.join(os.environ["DSH_LOCAL_HOME"], r"AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai")
 PREFIXES = ("session/", "workspace/", "subagents/", "agentPresets/", "skills/",
             "commands/", "credentials/", "settings/", "goal/", "plan/", "feedback/")
 PATTERN = re.compile(r"[\"']([a-zA-Z][a-zA-Z0-9]*/[a-zA-Z][a-zA-Z0-9/]*)[\"']")

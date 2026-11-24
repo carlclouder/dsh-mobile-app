@@ -15,7 +15,7 @@
 | 活跃会话（dsh-app-modile / AI经验卡与需求确认规则 / 部署codex） | 正常出现 ✓ |
 | 工作区筛选条与分组 | 正常 ✓ |
 
-证据文件：`archive_filter_verified.png`（界面截图）、`ui_dump_archive_filter.xml`（UI 树原始 dump，可逐条核对）。
+证据文件：`archive_filter_verified.png`（已停止公开）（界面截图）、`ui_dump_archive_filter.xml`（UI 树原始 dump，可逐条核对）。
 
 ## 结论与未覆盖场景
 - **App 侧归档过滤逻辑本身正确**：状态机 `sessionSnapshot()` 执行 `removeAll(archivedSessionIds)`，

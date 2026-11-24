@@ -5,7 +5,7 @@
 import json
 import os
 
-path = r"C:\Users\example-user\.dsh\profiles\web\package.json"
+path = os.path.join(os.environ["DSH_LOCAL_HOME"], r".dsh\profiles\web\package.json")
 raw = open(path, "rb").read()
 print("BOM check (前3字节):", raw[:3], "→", "有BOM(需修)" if raw[:3] == b"\xef\xbb\xbf" else "无BOM(OK)")
 

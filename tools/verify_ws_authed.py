@@ -1,10 +1,11 @@
 """带认证验证 /ws 可访问性（两种认证方式：受信 Host 免令牌路径 / 令牌换 Cookie）。"""
+import os
 import http.client
 import json
 import re
 import urllib.parse
 
-HOST_AUTH = "dsh-host.example.invalid"
+HOST_AUTH = os.environ["DSH_TARGET_HOST"]
 PORT = 3080
 FILES = ["before_workspace_empty.png", "after_workspace_restored.png", "workspace_switch.gif"]
 BASE = "D:/AI任务/dsh-mobile-app/test-evidence/workspace-stream-20260916"
@@ -26,7 +27,7 @@ for name in FILES:
     print(f"{name} -> HTTP {status}  {len(body)} 字节  {ctype}")
 
 print("\n=== 方式二：令牌换 Cookie 后访问（与浏览器行为一致） ===")
-log = open(r"C:\Users\example-user\.dsh\logs\dsh-webui.log", encoding="utf-8", errors="replace").read()
+log = open(os.path.join(os.environ["DSH_LOCAL_HOME"], r".dsh\logs\dsh-webui.log"), encoding="utf-8", errors="replace").read()
 tokens = re.findall(r"dsh web: http://127\.0\.0\.1:\d+/\?token=([A-Za-z0-9_-]+)", log)
 if not tokens:
     print("日志中无令牌，跳过")

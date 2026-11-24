@@ -2,7 +2,7 @@
 import os
 import re
 
-PLUGIN = r"C:\Users\example-user\.dsh\profiles\web\node_modules\dsh-chat-import"
+PLUGIN = os.path.join(os.environ["DSH_LOCAL_HOME"], r".dsh\profiles\web\node_modules\dsh-chat-import")
 
 print("=== 插件文件 ===")
 for dirpath, _dirs, files in os.walk(PLUGIN):

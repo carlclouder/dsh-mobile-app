@@ -1,5 +1,5 @@
 /**
- * 归档"废弃会话"：默认归档 cwd = C:\Users\example-user 的无标题会话（用户在 App 上看到的 Carl 条目）。
+ * 归档"废弃会话"：归档显式指定工作目录的无标题会话。
  * 归档可逆（宿主支持取消归档）。
  *
  * 用法：node archive_sessions.js                    → 归档 Carl 目录下的无标题会话
@@ -9,14 +9,20 @@
 const path = require("node:path");
 const http = require("node:http");
 const fs = require("node:fs");
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error("Missing required environment variable: " + name);
+  return value;
+}
+const DSH_LOCAL_HOME = requireEnv("DSH_LOCAL_HOME");
 
-const DSH_NODE_MODULES = "C:/Users/example-user/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules";
+const DSH_NODE_MODULES = path.join(DSH_LOCAL_HOME, "AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules");
 const WebSocket = require(path.join(DSH_NODE_MODULES, "ws"));
-const LOG = "C:/Users/example-user/.dsh/logs/dsh-webui.log";
+const LOG = path.join(DSH_LOCAL_HOME, ".dsh/logs/dsh-webui.log");
 const PORT = 3080;
 const DRY_RUN = process.argv.includes("--dry-run");
 const ALL_UNTITLED = process.argv.includes("--all-untitled");
-const TARGET_CWD = "c:\\users\\example-user";
+const TARGET_CWD = requireEnv("DSH_TARGET_CWD");
 
 const readToken = () => {
 	const text = fs.readFileSync(LOG, "utf8");

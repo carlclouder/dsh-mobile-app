@@ -1,15 +1,21 @@
 /**
- * 按工作目录核对：cwd = C:\Users\example-user 的会话共有多少、其中归档多少。
+ * 按工作目录核对：cwd = 用户主目录 的会话共有多少、其中归档多少。
  * 这类会话在 App 上会以"路径末段 Carl"作为标题显示（宿主未给 title），
  * 正是用户说的"大量 Carl 会话"。
  */
 const path = require("node:path");
 const http = require("node:http");
 const fs = require("node:fs");
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error("Missing required environment variable: " + name);
+  return value;
+}
+const DSH_LOCAL_HOME = requireEnv("DSH_LOCAL_HOME");
 
-const DSH_NODE_MODULES = "C:/Users/example-user/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules";
+const DSH_NODE_MODULES = path.join(DSH_LOCAL_HOME, "AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules");
 const WebSocket = require(path.join(DSH_NODE_MODULES, "ws"));
-const LOG = "C:/Users/example-user/.dsh/logs/dsh-webui.log";
+const LOG = path.join(DSH_LOCAL_HOME, ".dsh/logs/dsh-webui.log");
 const PORT = 3080;
 
 const readToken = () => {
@@ -58,11 +64,11 @@ const rpc = (method, payload, cookie) =>
 
 	const archived = new Set(baseline.archivedSessionIds.map(String));
 	const noTitle = items.filter((it) => !(it.projections?.values?.title));
-	const carlCwd = items.filter((it) => String(it.cwd ?? "").toLowerCase() === "c:\\users\\example-user");
+	const carlCwd = items.filter((it) => path.win32.normalize(String(it.cwd ?? "")).toLowerCase() === path.win32.normalize(DSH_LOCAL_HOME).toLowerCase());
 
 	console.log(`会话总数 ${items.length} | 归档 ${archived.size} | 过滤后应显示 ${items.length - archived.size}`);
 	console.log(`\n【无 title 的会话】共 ${noTitle.length} 个（App 会用 cwd 末段当标题显示）`);
-	console.log(`  其中 cwd = C:\\Users\\example-user 的: ${carlCwd.length} 个`);
+	console.log(`  其中 cwd = 用户主目录 的: ${carlCwd.length} 个`);
 	console.log(`    已归档（App 不应显示）: ${carlCwd.filter((it) => archived.has(String(it.sessionId))).length}`);
 	console.log(`    未归档（App 应显示）  : ${carlCwd.filter((it) => !archived.has(String(it.sessionId))).length}`);
 

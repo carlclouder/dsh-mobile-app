@@ -2,7 +2,7 @@
 import os
 import re
 
-ROOT = r"C:\Users\example-user\AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai"
+ROOT = os.path.join(os.environ["DSH_LOCAL_HOME"], r"AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\node_modules\@deepseek-ai")
 TARGET = os.path.join(ROOT, "dsh-api-gateway")
 KEYS = ["class RemoteStreamMuxServer", "handleUpgrade", "parseOpenFrame", "type: \"open\"",
         "\"open\"", "streamId", "parseRemoteStreamFrame"]

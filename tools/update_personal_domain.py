@@ -3,13 +3,14 @@
 背景：用户更换 Tailscale 网络后域名变更，APK 编译时注入的默认地址仍是旧域名，
 导致手机装包后默认地址 DNS 解析失败（不可达）。
 """
+import os
 path = r"D:\AI任务\dsh-mobile-app\app\personal.properties"
 with open(path, encoding="utf-8") as f:
     text = f.read()
 print("=== 修改前 ===")
 print(text)
 
-text = text.replace("dsh-host.example.invalid", "dsh-host.example.invalid")
+text = text.replace(os.environ["DSH_PREVIOUS_HOST"], os.environ["DSH_TARGET_HOST"])
 
 with open(path, "w", encoding="utf-8", newline="") as f:
     f.write(text)

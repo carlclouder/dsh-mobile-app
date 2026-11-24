@@ -1,5 +1,6 @@
 """向全局规则追加"坑三：dsh plugin install 不补齐插件且清登记"（文件中转，避免匹配/转义问题）。"""
-path = r"C:\Users\example-user\.dsh\AGENTS.md"
+import os
+path = os.path.join(os.environ["DSH_LOCAL_HOME"], r".dsh\AGENTS.md")
 text = open(path, encoding="utf-8").read()
 
 anchor = "任何配置修改前先落 `.bak-日期-说明` 备份。"

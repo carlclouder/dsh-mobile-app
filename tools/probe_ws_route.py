@@ -1,8 +1,9 @@
 """判别 /ws 404 的性质：纯英文路径是否可访问（区分"路由不存在"与"中文编码问题"）。"""
+import os
 import http.client
 import urllib.parse
 
-HOST_AUTH = "dsh-host.example.invalid"
+HOST_AUTH = os.environ["DSH_TARGET_HOST"]
 PORT = 3080
 
 

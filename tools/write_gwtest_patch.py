@@ -1,7 +1,7 @@
 """为临时验证实例写 user patch：把网关插件端口指到隔离端口（不占用 3081/3080）。"""
 import os
 
-dev_home = r"C:\Users\example-user\.dsh-dev\gwtest"
+dev_home = os.path.join(os.environ["DSH_LOCAL_HOME"], r".dsh-dev\gwtest")
 os.makedirs(dev_home, exist_ok=True)
 path = os.path.join(dev_home, "cordis.patch.yml")
 

@@ -1,14 +1,20 @@
 /**
- * 精确核对：界面上出现的会话（尤其标题为 Carl、路径 C:\Users\example-user 的）是否属于归档集合。
+ * 精确核对：界面上出现的会话（尤其对应本机的会话）是否属于归档集合。
  * 输出三组：①归档集合里标题为 Carl 的会话 ②未归档里标题为 Carl 的会话 ③按归档过滤后的完整可见清单统计。
  */
 const path = require("node:path");
 const http = require("node:http");
 const fs = require("node:fs");
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error("Missing required environment variable: " + name);
+  return value;
+}
+const DSH_LOCAL_HOME = requireEnv("DSH_LOCAL_HOME");
 
-const DSH_NODE_MODULES = "C:/Users/example-user/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules";
+const DSH_NODE_MODULES = path.join(DSH_LOCAL_HOME, "AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules");
 const WebSocket = require(path.join(DSH_NODE_MODULES, "ws"));
-const LOG = "C:/Users/example-user/.dsh/logs/dsh-webui.log";
+const LOG = path.join(DSH_LOCAL_HOME, ".dsh/logs/dsh-webui.log");
 const PORT = 3080;
 
 const readToken = () => {

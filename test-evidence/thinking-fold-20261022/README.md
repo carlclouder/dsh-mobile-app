@@ -27,16 +27,16 @@
 | --- | --- | --- |
 | 改动前：每步一个气泡，中间连续空壳铺满整屏 | [before-stacked-steps.png](before-stacked-steps.png) | 复现问题 |
 | 改动前：另一会话尾部同样逐步铺开 | [before-session-tail.png](before-session-tail.png) | 复现问题 |
-| 默认折叠：连续 7 步收成一行，行首 `▸` 折叠标识，写明步数、工具调用数与「点按展开」 | [collapsed-frame.png](collapsed-frame.png) | 通过 |
-| 手动点开：**还原成原来一个个独立气泡**（各自气泡边框、自己的「思考过程 · 点按展开」、工具调用、时间行），不是塞进同一个框 | [expanded-frame.png](expanded-frame.png)、[expanded-separate-bubbles.png](expanded-separate-bubbles.png) | 通过 |
-| 再点收起：回到单行 | [toggle.gif](toggle.gif) | 通过 |
+| 默认折叠：连续 7 步收成一行，行首 `▸` 折叠标识，写明步数、工具调用数与「点按展开」 | collapsed-frame.png（已停止公开） | 通过 |
+| 手动点开：**还原成原来一个个独立气泡**（各自气泡边框、自己的「思考过程 · 点按展开」、工具调用、时间行），不是塞进同一个框 | expanded-frame.png（已停止公开）、[expanded-separate-bubbles.png](expanded-separate-bubbles.png) | 通过 |
+| 再点收起：回到单行 | toggle.gif（已停止公开） | 通过 |
 | 带正文的步骤不折叠：同一会话首步「我先核对本机实际支持情况，再回答。」与后段带正文步骤仍是独立气泡 | collapsed-frame.png、tail-row.png | 通过 |
 | 单条无正文不折叠：只有一步时保持原来的独立气泡 | 源码与单测口径；设备上「dsh」会话末条单步仍为独立气泡 | 通过 |
 | 列表尾部组：收起时只滚动显示最新一条内容（`▸ 💭 2 步` + 钉尾滚动），点开还原独立气泡 | [tail-row.png](tail-row.png)、[ui-tail-row.xml](ui-tail-row.xml) | 通过 |
 | 分组键稳定：后续步骤并入同组时展开状态不丢 | 单测 `group key stays stable when the run grows` | 通过（单测） |
 | 跳到底部按渲染项数定位 | 0.1.207 设备实测，按钮出现后点击抵达末尾、按钮消失 | 通过 |
 
-`toggle.gif`：22 帧、每帧 500ms、540×1200；第 6 帧点开展开、第 15 帧点按收起。
+`toggle.gif`（已停止公开）：22 帧、每帧 500ms、540×1200；第 6 帧点开展开、第 15 帧点按收起。
 折叠态 7 帧（0–6）、展开态 9 帧（7–15）、收起后 6 帧（16–21），两侧稳定态均 ≥2 帧，
 同态逐帧 MD5 一致。原始帧 1080×2400，采集间隔实测 0.49–0.53 秒；GIF 固定 500ms 播放。
 逐帧大小、哈希与采集时间见 [capture.json](capture.json) 与 [timestamps.txt](timestamps.txt)。
