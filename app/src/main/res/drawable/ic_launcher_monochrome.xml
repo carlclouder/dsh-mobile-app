@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt" android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Single-alpha whale silhouette for Android 13+ themed icons. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.8" android:scaleY="0.8" android:translateX="-0.5" android:translateY="1">
+    <path android:pathData="M25,56 C25,48 31,42 40,40 C50,37.5 61,41.3 67.4,48.4 C70.6,46.8 74,44.7 76,42.1 C71,39.3 68.6,34.9 68.6,31.2 C74,31.8 78.7,34.1 81,38.5 C84,35.4 87,34.7 89,35.2 C87.8,41.8 84.4,44.4 80.3,45.7 C78.5,53.3 74.1,61.7 67.6,67.7 C61.1,73.6 53.3,76.4 44.2,75.9 C32.9,75.3 25,67.6 25,56 Z M39.1,54.5 A2.7,2.7 0 1,0 44.5,54.5 A2.7,2.7 0 1,0 39.1,54.5 Z M29.5,51.1 C32.1,46.8 37.9,43.7 44.2,43.5 C50,43.2 55,45.1 59.7,48.1 L58.5,50.3 C53.7,47.5 49.4,46 44.4,46.1 C38.6,46.3 33.9,48.7 31.4,52.2 Z M52.6,63.7 C56.2,64.4 59.7,64.3 62.1,63.4 C59.4,67.2 57.1,68.8 54.4,69.7 C54.8,67.1 54,65.2 52.6,63.7 Z" android:fillColor="#FFFFFFFF" android:fillType="evenOdd" />
+    </group>
+</vector>

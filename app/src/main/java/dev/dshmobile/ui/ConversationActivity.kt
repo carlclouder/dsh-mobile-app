@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy   // ScrollableState.scrollBy 扩展（jumpToEnd 补滚剩余高度用）
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -55,7 +57,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,8 +73,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import dev.dshmobile.data.AppearancePreference
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -96,7 +103,12 @@ class ConversationActivity : ComponentActivity() {
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "会话"
         setContent {
             val vm: ConversationViewModel = viewModel(factory = ConversationViewModel.factory(sessionId))
-            ConversationScreen(vm, title, onBack = { finish() })
+            val themeKey by dev.dshmobile.DshRepository.settingsStore.themeKeyFlow.collectAsState(
+                initial = AppearancePreference.DEFAULT,
+            )
+            DshTheme(themeKey) {
+                ConversationScreen(vm, title, onBack = { finish() })
+            }
         }
     }
 
@@ -129,49 +141,55 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
     // 接近底部区间内每次刷新都会把视口拽回，与拖动打架）；点「跳到底部」或发送消息时恢复
     var followStream by remember { mutableStateOf(true) }
 
+    val skin = LocalDshSkin.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            // 页面底色提亮为 surface（与气泡 surfaceVariant 形成对比——默认主题下两者原先几乎同色，
-            // 气泡边界不可见被感知为"留边过宽"；气泡内边距已收紧为 5dp）
-            .background(MaterialTheme.colorScheme.surface)
             // 让出系统状态栏（顶部固定不被挤走）；导航栏与键盘 insets 取并集：
             // 键盘弹起时按 IME 高度垫高（adjustResize 下窗口不再整体平移——修复"键盘一弹顶条被挤出"），
             // 键盘收起时回落到导航栏高度，两态互斥不叠加。
             .statusBarsPadding()
-            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+            .skinConversationEntrance(),
     ) {
-        // 原生顶条
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // 两种皮肤采用同一个模型选择器和停止回调；仅控制区的布置不同。
+        Column(
+            Modifier.fillMaxWidth().skinPanel(SkinSurface.TOP, RoundedCornerShape(0.dp)),
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                }
+                Text(
+                    title, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!skin.dark) {
+                    ModelChip(viewModel, Modifier.widthIn(max = 164.dp))
+                }
+                if (running) {
+                    TextButton(onClick = { viewModel.stop() }) { Text("停止") }
+                }
             }
-            Text(
-                title,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 17.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // 需求：模型/推理等级选择器（chip → 底部弹出选择）
-            ModelChip(viewModel)
-            if (running) {
-                TextButton(onClick = { viewModel.stop() }) { Text("停止") }
+            if (skin.dark) {
+                Box(
+                    Modifier.fillMaxWidth().skinPanel(SkinSurface.HERO, RoundedCornerShape(0.dp))
+                        .padding(horizontal = 10.dp),
+                ) { ModelChip(viewModel) }
             }
         }
-        HorizontalDivider()
 
         // 消息列表（Box 包裹：悬浮"跳到底部"按钮叠加在其上）
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 3.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
             ) {
                 // 注：不传 key（默认索引键）——避免消息 key 重复导致 LazyColumn 崩溃（部分流式/回显状态下 key 会重复）
                 items(renderItems) { item ->
@@ -243,11 +261,10 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
                 QueuedMessages(viewModel)
             }
         }
-        HorizontalDivider()
-
         // 输入行（仅消息发送 + 语音；插话已移入排队消息行）
         Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            modifier = Modifier.fillMaxWidth().skinPanel(SkinSurface.DOCK, RoundedCornerShape(0.dp))
+                .padding(horizontal = 8.dp, vertical = 7.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             OutlinedTextField(
@@ -255,6 +272,11 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
                 onValueChange = { input = it },
                 placeholder = { Text("输入消息…") },
                 modifier = Modifier.weight(1f),
+                shape = MaterialTheme.shapes.small,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
                 maxLines = 4,
             )
             Spacer(modifier = Modifier.width(8.dp))
@@ -270,6 +292,7 @@ private fun ConversationScreen(viewModel: ConversationViewModel, title: String, 
                     }
                 },
                 enabled = input.isNotBlank(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
             ) { Text("发送") }
         }
     }
@@ -383,16 +406,63 @@ private suspend fun androidx.compose.foundation.lazy.LazyListState.scrollRemaind
     }
 }
 
+/** 冰蓝时间轨只改变排版；消息正文、展开和可选文本保持同一实现。 */
+@Composable
+private fun IceMessageRail(label: String, timeMillis: Long, content: @Composable () -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth >= 340.dp && LocalDensity.current.fontScale <= 1.25f) {
+            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp)) {
+                Column(
+                    Modifier.width(46.dp)
+                        .skinPanel(SkinSurface.RAIL, MaterialTheme.shapes.small)
+                        .padding(horizontal = 4.dp, vertical = 5.dp),
+                ) {
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    if (timeMillis > 0) {
+                        val clock = remember(timeMillis) {
+                            java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                                .format(java.util.Date(timeMillis))
+                        }
+                        Text(clock, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Box(Modifier.weight(1f)) { content() }
+            }
+        } else {
+            content()
+        }
+    }
+}
+
 @Composable
 private fun MessageBubble(msg: UiMessage) {
+    val skin = LocalDshSkin.current
+    val role = when (msg.role) {
+        ConversationViewModel.Role.USER -> "你"
+        ConversationViewModel.Role.ASSISTANT -> "Agent"
+        else -> null
+    }
+    if (!skin.dark && role != null) {
+        IceMessageRail(role, msg.timeMillis) { MessageBubbleContent(msg) }
+    } else {
+        MessageBubbleContent(msg)
+    }
+}
+
+@Composable
+private fun MessageBubbleContent(msg: UiMessage) {
     androidx.compose.foundation.text.selection.SelectionContainer {
         when (msg.role) {
             ConversationViewModel.Role.USER -> Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = if (LocalDshSkin.current.dark) Arrangement.End else Arrangement.Start,
             ) {
-                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.widthIn(max = 300.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
+                Surface(
+                    color = Color.Transparent,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.skinPanel(SkinSurface.USER),
+                ) {
+                    Column(Modifier.widthIn(max = 315.dp).padding(horizontal = 10.dp, vertical = 4.dp)) {
                         CollapsibleMarkdownBody(msg.text, fontSizeSp = 15f)
                         msg.deliveryState?.let { state ->
                             val label = when (state) {
@@ -418,11 +488,12 @@ private fun MessageBubble(msg: UiMessage) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                // 助手消息保留气泡（内容收在条内）。留边过宽的真正根因是默认主题下
-                // surfaceVariant(气泡) 与页面底色几乎同色（气泡边界不可见被感知成空白）——
-                // 现把页面底色调亮为 surface（见根布局 background），气泡与页面形成清晰对比。
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.widthIn(max = 320.dp).padding(horizontal = 9.dp, vertical = 2.dp)) {
+                Surface(
+                    color = Color.Transparent,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.skinPanel(SkinSurface.CARD),
+                ) {
+                    Column(Modifier.widthIn(max = 345.dp).padding(horizontal = 10.dp, vertical = 4.dp)) {
                         AssistantMessageContent(msg)
                     }
                 }
@@ -911,12 +982,12 @@ private fun QuestionCard(viewModel: ConversationViewModel, info: NotificationSta
     val submission = submissions[viewModel.questionActionKey(info)]?.state
     val canEdit = info.available && !info.answerQueued && submission == null
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = Color.Transparent,
         shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp).skinPanel(SkinSurface.FEATURE),
     ) {
-        Column(Modifier.padding(10.dp)) {
-            Text("❓ Agent 提问", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+            Text("❓ Agent 提问", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             InteractionStatusText(info.available, submission, info.answerQueued)
             info.questions.forEach { question ->
                 Spacer(Modifier.height(6.dp))
@@ -1211,7 +1282,7 @@ private fun MicButton(onText: (String) -> Unit) {
 
 /** 模型/推理等级选择 chip（点击 → 底部弹出选择器）；未加载时显示"模型"。 */
 @Composable
-private fun ModelChip(viewModel: ConversationViewModel) {
+private fun ModelChip(viewModel: ConversationViewModel, modifier: Modifier = Modifier) {
     val current by viewModel.currentModel.collectAsState()
     val models by viewModel.models.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
@@ -1226,8 +1297,12 @@ private fun ModelChip(viewModel: ConversationViewModel) {
         current == null -> "模型"
         else -> listOfNotNull(modelEntry?.name ?: current?.model, effortName).joinToString(" · ")
     }
-    TextButton(onClick = { showPicker = true }) {
-        Text("◆ $label", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    TextButton(
+        onClick = { showPicker = true },
+        modifier = modifier.padding(vertical = 4.dp).skinPanel(SkinSurface.CARD, MaterialTheme.shapes.small),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text("◆ $label", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
     if (showPicker) {
         ModelPickerSheet(viewModel, onDismiss = { showPicker = false })
@@ -1245,14 +1320,22 @@ private fun ModelPickerSheet(viewModel: ConversationViewModel, onDismiss: () -> 
     LaunchedEffect(Unit) {
         if (models?.groups.isNullOrEmpty()) viewModel.loadModels()
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = rememberModalBottomSheetState()
+    val surfaceAlpha by skinSheetContentAlpha(sheetState.targetValue != SheetValue.Hidden)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.49f),
+        tonalElevation = 0.dp,
+    ) {
         androidx.compose.foundation.layout.Column(
-            modifier = Modifier
-                .padding(16.dp)
+            modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = surfaceAlpha }
+                .skinPanel(SkinSurface.TOP, RoundedCornerShape(0.dp)).padding(16.dp)
                 // 可滚动：多供应商/多模型时全部可达
                 .verticalScroll(androidx.compose.foundation.rememberScrollState()),
         ) {
-            Text("选择模型", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("选择模型", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             // 1) 模型区：供应商分组 → 模型；点模型即选中 provider+model，思考等级重置为该模型默认
             if (models?.groups.isNullOrEmpty()) {

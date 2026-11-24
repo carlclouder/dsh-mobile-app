@@ -1,10 +1,16 @@
 package dev.dshmobile.ui
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,15 +20,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -43,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -316,10 +329,19 @@ fun SessionListScreen(viewModel: SessionListViewModel = viewModel()) {
     var forkTarget by remember { mutableStateOf<SessionListViewModel.Row?>(null) }
     var archiveTarget by remember { mutableStateOf<SessionListViewModel.Row?>(null) }
 
+    val skin = LocalDshSkin.current
     Scaffold(
+        containerColor = Color.Transparent,
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateSheet = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "新建会话")
+            if (!skin.dark) {
+                FloatingActionButton(
+                    onClick = { showCreateSheet = true },
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.skinPanel(SkinSurface.PRIMARY, MaterialTheme.shapes.large),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "新建会话")
+                }
             }
         },
     ) { padding ->
@@ -328,34 +350,63 @@ fun SessionListScreen(viewModel: SessionListViewModel = viewModel()) {
             onRefresh = { viewModel.refresh() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                ConnectionBanner(connection)
-                // 需求 2.9.1/2.9.2：工作区过滤条（可折叠，折叠后不占空间避免干扰）
-                WorkspaceFilterBar(
-                    workspaces = workspaces,
-                    selected = selectedWs,
-                    expanded = showWsfilter,
-                    onToggle = { showWsfilter = !showWsfilter },
-                    onSelect = { viewModel.selectWorkspace(it) },
-                )
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    SessionListViewModel.Group.entries.forEach { group ->
-                        val groupRows = rows.filter { it.group == group }
-                        if (groupRows.isEmpty()) return@forEach
-                        item(key = "header-${group.name}") {
-                            GroupHeader(groupLabel(group), groupRows.size)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val useLanes = !skin.dark && maxWidth >= 350.dp && LocalDensity.current.fontScale <= 1.25f
+                Column(Modifier.fillMaxSize()) {
+                    SessionHeader(connection, onCreate = { showCreateSheet = true })
+                    WorkspaceFilterBar(
+                        workspaces = workspaces,
+                        selected = selectedWs,
+                        expanded = showWsfilter,
+                        onToggle = { showWsfilter = !showWsfilter },
+                        onSelect = { viewModel.selectWorkspace(it) },
+                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 15.dp, end = 15.dp, top = 5.dp, bottom = if (skin.dark) 16.dp else 84.dp,
+                        ),
+                    ) {
+                        SessionListViewModel.Group.entries.forEach { group ->
+                            val groupRows = rows.filter { it.group == group }
+                            if (groupRows.isEmpty()) return@forEach
+                            if (!useLanes) {
+                                item(key = "header-${group.name}") { GroupHeader(groupLabel(group), groupRows.size) }
+                            }
+                            itemsIndexed(groupRows, key = { _, row -> row.sessionId }) { index, row ->
+                                if (useLanes) {
+                                    Row(Modifier.fillMaxWidth().heightIn(min = 58.dp)) {
+                                        if (index == 0) {
+                                            SessionLane(group, groupRows.size)
+                                        } else {
+                                            Spacer(Modifier.width(70.dp))
+                                        }
+                                        SessionRow(
+                                            row, nowMillis, viewModel, context,
+                                            onMenuOpen = { menuTarget = row },
+                                            modifier = Modifier.weight(1f),
+                                            lane = true,
+                                        )
+                                    }
+                                } else {
+                                    SessionRow(row, nowMillis, viewModel, context, onMenuOpen = { menuTarget = row })
+                                }
+                                if (useLanes && index == groupRows.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                    )
+                                }
+                            }
                         }
-                        items(groupRows, key = { it.sessionId }) { row ->
-                            SessionRow(row, nowMillis, viewModel, context, onMenuOpen = { menuTarget = row })
-                        }
-                    }
-                    if (rows.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text("暂无会话", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (rows.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("暂无会话", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -480,7 +531,41 @@ private fun groupLabel(group: SessionListViewModel.Group): String = when (group)
     SessionListViewModel.Group.IDLE -> "空闲"
 }
 
-/** 工作区过滤条（需求 2.9.1/2.9.2）：可折叠 chips，选中过滤会话；折叠后只留一行标题不占空间。 */
+@Composable
+private fun SessionHeader(state: DshRepository.ConnectionState, onCreate: () -> Unit) {
+    val skin = LocalDshSkin.current
+    Row(
+        Modifier.fillMaxWidth()
+            .skinPanel(if (skin.dark) SkinSurface.HERO else SkinSurface.TOP, RoundedCornerShape(0.dp))
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (skin.dark) {
+            Column(Modifier.weight(1f)) {
+                ConnectionBanner(state)
+                Text("会话", style = MaterialTheme.typography.headlineSmall)
+            }
+            Button(
+                onClick = onCreate,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                modifier = Modifier.skinPanel(SkinSurface.PRIMARY, MaterialTheme.shapes.small),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("新建会话")
+            }
+        } else {
+            Text("会话", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+            Box(Modifier.weight(1.2f), contentAlignment = Alignment.CenterEnd) {
+                ConnectionBanner(state)
+            }
+        }
+    }
+}
+
+/** 工作区筛选的选中状态、横向滚动与折叠动作沿用原实现。 */
 @Composable
 private fun WorkspaceFilterBar(
     workspaces: List<dev.dshmobile.model.WorkspaceView>,
@@ -489,74 +574,105 @@ private fun WorkspaceFilterBar(
     onToggle: () -> Unit,
     onSelect: (String?) -> Unit,
 ) {
-    // 折叠态：一个"工作区"切换按钮（折叠后不占空间，需求 2.9.2）
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints(
+        Modifier.fillMaxWidth()
+            .skinPanel(SkinSurface.HERO, RoundedCornerShape(0.dp))
+            .padding(horizontal = 12.dp, vertical = 2.dp),
     ) {
-        TextButton(onClick = onToggle) {
-            Text(if (expanded) "工作区 ▾" else "工作区 ▴", fontSize = 13.sp)
+        val inline = maxWidth >= 326.dp && LocalDensity.current.fontScale <= 1.25f
+        val filter: @Composable (Modifier) -> Unit = { modifier ->
+            Row(
+                modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                WorkspaceChip("全部", selected == null) { onSelect(null) }
+                workspaces.forEach { ws ->
+                    WorkspaceChip(ws.title, selected == ws.workspaceId) { onSelect(ws.workspaceId) }
+                }
+            }
         }
-    }
-    if (expanded) {
-        // 工作区 chips（多工作区时可横向滚动）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip("全部", selected == null) { onSelect(null) }
-            workspaces.forEach { ws ->
-                FilterChip(ws.title, selected == ws.workspaceId) { onSelect(ws.workspaceId) }
+        val toggle: @Composable () -> Unit = {
+            TextButton(onClick = onToggle) {
+                Text(if (expanded) "工作区 ▾" else "工作区 ▴", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        if (inline) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                toggle()
+                if (expanded) filter(Modifier.weight(1f))
+            }
+        } else {
+            Column {
+                toggle()
+                if (expanded) filter(Modifier.fillMaxWidth())
             }
         }
     }
 }
 
 @Composable
-private fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    androidx.compose.material3.FilterChip(
+private fun WorkspaceChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
         selected = selected,
         onClick = onClick,
-        label = { Text(text, fontSize = 13.sp) },
+        label = { Text(text, maxLines = 1) },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+        ),
     )
 }
 
 @Composable
 private fun ConnectionBanner(state: DshRepository.ConnectionState) {
+    val skin = LocalDshSkin.current
     val (text, color) = when (state) {
-        DshRepository.ConnectionState.CONNECTED -> "已连接" to Color(0xFF2E7D32)
-        DshRepository.ConnectionState.RECONNECTING -> "重连中…" to Color(0xFFF9A825)
+        DshRepository.ConnectionState.CONNECTED -> "已连接" to skin.running
+        DshRepository.ConnectionState.RECONNECTING -> "重连中…" to skin.waiting
         DshRepository.ConnectionState.UNREACHABLE ->
-            "不可达——请检查 Tailscale VPN 是否在线" to Color(0xFFC62828)
-        DshRepository.ConnectionState.UNKNOWN -> "连接中…" to Color(0xFF9E9E9E)
+            "不可达——请检查 Tailscale VPN 是否在线" to MaterialTheme.colorScheme.error
+        DshRepository.ConnectionState.UNKNOWN -> "连接中…" to skin.idle
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(8.dp).background(color, CircleShape))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text, color = color, fontSize = 13.sp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(7.dp).background(color, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text(text, color = color, style = MaterialTheme.typography.labelMedium)
     }
 }
 
 @Composable
 private fun GroupHeader(label: String, count: Int) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
+        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 5.dp, start = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-        Spacer(modifier = Modifier.width(6.dp))
-        Text("$count", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.titleSmall)
+        Text(
+            "$count",
+            Modifier.skinPanel(SkinSurface.RAIL, MaterialTheme.shapes.small).padding(horizontal = 6.dp, vertical = 1.dp),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
+private fun SessionLane(group: SessionListViewModel.Group, count: Int) {
+    val skin = LocalDshSkin.current
+    val shape = MaterialTheme.shapes.small
+    val status = when (group) {
+        SessionListViewModel.Group.RUNNING -> skin.running
+        SessionListViewModel.Group.WAITING -> skin.waiting
+        SessionListViewModel.Group.IDLE -> skin.idle
+    }
+    Column(
+        Modifier.width(70.dp).padding(end = 8.dp, top = 4.dp, bottom = 4.dp)
+            .skinPanel(SkinSurface.RAIL, shape).defaultMinSize(minHeight = 50.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+    ) {
+        Text(groupLabel(group), color = status, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text("$count", color = status, style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -567,31 +683,43 @@ private fun SessionRow(
     viewModel: SessionListViewModel,
     context: android.content.Context,
     onMenuOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+    lane: Boolean = false,
 ) {
+    val skin = LocalDshSkin.current
     val dotColor = when (row.group) {
-        SessionListViewModel.Group.RUNNING -> Color(0xFF2E7D32)
-        SessionListViewModel.Group.WAITING -> Color(0xFFF9A825)
-        SessionListViewModel.Group.IDLE -> Color(0xFF9E9E9E)
+        SessionListViewModel.Group.RUNNING -> skin.running
+        SessionListViewModel.Group.WAITING -> skin.waiting
+        SessionListViewModel.Group.IDLE -> skin.idle
     }
+    val rowModifier = if (lane) modifier else modifier.padding(vertical = 3.dp).skinPanel(SkinSurface.CARD)
+    val interactions = remember { MutableInteractionSource() }
     Row(
-        modifier = Modifier
+        modifier = rowModifier
             .fillMaxWidth()
-            .clickable {
+            .skinPress(interactions)
+            .clickable(
+                interactionSource = interactions,
+                indication = LocalIndication.current,
+            ) {
                 context.startActivity(
                     android.content.Intent(context, ConversationActivity::class.java)
                         .putExtra(ConversationActivity.EXTRA_SESSION_ID, row.sessionId)
                 )
             }
-            .padding(horizontal = 16.dp, vertical = 14.dp),   // 行高≈64dp 排版原则（§5.4）
+            .heightIn(min = 58.dp)
+            .padding(start = if (lane) 1.dp else 8.dp, end = 2.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.size(10.dp).background(dotColor, CircleShape))
-        Spacer(modifier = Modifier.width(14.dp))
+        if (!lane) {
+            Box(Modifier.width(3.dp).height(23.dp).background(dotColor, CircleShape))
+            Spacer(Modifier.width(9.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 row.title,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -607,11 +735,14 @@ private fun SessionRow(
             if (row.group == SessionListViewModel.Group.RUNNING)
                 viewModel.runningForText(row.runningSinceMillis, nowMillis)
             else row.relativeText,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp).widthIn(max = 64.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         // 会话操作菜单入口（需求 5.4.1：重命名/分叉/归档）
-        IconButton(onClick = onMenuOpen, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = onMenuOpen) {
             Icon(Icons.Filled.MoreVert, contentDescription = "会话操作", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

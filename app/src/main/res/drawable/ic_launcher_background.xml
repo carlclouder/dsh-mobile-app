@@ -1,12 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M0,0H108V108H0Z">
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt" android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Ice Blue Light Curtain: layered frost with a continuous mask-safe background. -->
+    <path android:pathData="M0,0 H108 V108 H0 Z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="16" android:startY="12" android:endX="94" android:endY="100">
-                <item android:offset="0" android:color="#173B89" />
-                <item android:offset="0.55" android:color="#10285F" />
-                <item android:offset="1" android:color="#091A3B" />
+            <gradient android:type="linear" android:startX="13" android:startY="7" android:endX="96" android:endY="99">
+                <item android:offset="0" android:color="#F8FCFF" />
+                <item android:offset="0.28" android:color="#DFEDFF" />
+                <item android:offset="0.57" android:color="#BBD7FB" />
+                <item android:offset="1" android:color="#A9C4EF" />
             </gradient>
         </aapt:attr>
     </path>
+    <path android:pathData="M0,32 C23,10 53,16 79,25 C91,29 101,28 108,22 V0 H0 Z" android:fillColor="#FFFFFF" android:fillAlpha="0.3" />
+    <path android:pathData="M0,82 C21,68 31,62 54,62 C77,63 90,50 108,38 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="9" android:startY="31" android:endX="95" android:endY="79">
+                <item android:offset="0" android:color="#D4F1FF" />
+                <item android:offset="0.44" android:color="#EDF8FF" />
+                <item android:offset="0.78" android:color="#CEDDFA" />
+                <item android:offset="1" android:color="#ADC7EF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,101 C22,75 35,71 59,67 C78,64 93,53 108,49 V108 H0 Z" android:fillAlpha="0.85">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="15" android:startY="25" android:endX="100" android:endY="92">
+                <item android:offset="0" android:color="#EBFAFF" />
+                <item android:offset="0.5" android:color="#C7DEFC" />
+                <item android:offset="1" android:color="#AABFE8" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,81 C21,68 34,63 54,63 C79,64 95,47 108,38" android:strokeColor="#F6FDFF" android:strokeWidth="1.4" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeAlpha="0.65" />
+    <path android:pathData="M1,103 C22,79 43,72 66,67 C83,63 97,55 108,51" android:strokeColor="#9CB7E8" android:strokeWidth="1.25" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeAlpha="0.47" />
+    <path android:pathData="M16,28 C24,20 36,17 48,18" android:strokeColor="#FFFFFF" android:strokeWidth="1.2" android:strokeLineCap="round" android:strokeLineJoin="round" android:strokeAlpha="0.32" />
 </vector>

@@ -33,11 +33,6 @@ class SettingsStore(private val context: Context) {
          */
         val DEFAULT_BASE_URL: String = dev.dshmobile.BuildConfig.DEFAULT_BASE_URL
 
-        /** 主题键（默认/护眼蓝/护眼绿；default|eyeblue|eyegreen）。 */
-        const val THEME_DEFAULT = "default"
-        const val THEME_EYE_BLUE = "eyeblue"
-        const val THEME_EYE_GREEN = "eyegreen"
-
         private val KEY_BASE_URL = stringPreferencesKey("base_url")
         private val KEY_TOGGLE_TURN = booleanPreferencesKey("toggle_turn_complete")
         private val KEY_TOGGLE_APPROVAL = booleanPreferencesKey("toggle_approval")
@@ -45,15 +40,15 @@ class SettingsStore(private val context: Context) {
         private val KEY_THEME = stringPreferencesKey("theme_key")
     }
 
-    /** 主题键流（默认 default）。 */
+    /** 外观偏好：保留原存储键，兼容已安装版本的历史值。 */
     val themeKeyFlow: Flow<String> = context.dshDataStore.data.map { prefs ->
-        prefs[KEY_THEME] ?: THEME_DEFAULT
+        AppearancePreference.normalize(prefs[KEY_THEME])
     }
 
     suspend fun themeKeyOnce(): String = themeKeyFlow.first()
 
     suspend fun setThemeKey(key: String) {
-        context.dshDataStore.edit { it[KEY_THEME] = key }
+        context.dshDataStore.edit { it[KEY_THEME] = AppearancePreference.normalize(key) }
     }
 
     /** 服务器地址流（空值归一为默认地址）。 */

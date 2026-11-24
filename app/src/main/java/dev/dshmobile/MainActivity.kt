@@ -8,10 +8,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -26,7 +29,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import dev.dshmobile.ui.SkinSurface
+import dev.dshmobile.ui.skinPanel
 import androidx.compose.ui.platform.LocalContext
 import dev.dshmobile.service.EventStreamService
 import dev.dshmobile.ui.SettingsScreen
@@ -89,24 +95,38 @@ class MainActivity : ComponentActivity() {
 fun DshMobileApp() {
     var currentTab by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
-    // 主题（皮肤）：默认/护眼蓝/护眼绿
+    // Appearance preference changes presentation only; keep the active tab.
     val themeKey by DshRepository.settingsStore.themeKeyFlow.collectAsState(
-        initial = dev.dshmobile.data.SettingsStore.THEME_DEFAULT,
+        initial = dev.dshmobile.data.AppearancePreference.DEFAULT,
     )
 
     dev.dshmobile.ui.DshTheme(themeKey) {
+        val navColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Scaffold(
+            containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    modifier = Modifier.skinPanel(SkinSurface.DOCK, RoundedCornerShape(0.dp)),
+                    containerColor = Color.Transparent,
+                    tonalElevation = 0.dp,
+                ) {
                     NavigationBarItem(
                         selected = currentTab == 0,
+                        colors = navColors,
                         onClick = { currentTab = 0 },
                         icon = { Icon(Icons.Filled.List, contentDescription = null) },
                         label = { Text("会话") },
                     )
                     NavigationBarItem(
                         selected = currentTab == 1,
+                        colors = navColors,
                         onClick = { currentTab = 1 },
                         icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                         label = { Text("设置") },
