@@ -1,6 +1,6 @@
 # DSH Mobile 当前架构
 
-> 对齐日期：2026-10-21。本文描述当前源码和运行路径。[DESIGN.md](DESIGN.md) 保留早期设计及迁移过程，不能作为当前部署步骤。功能操作见 [USAGE](../USAGE.md)，验收记录见[实时思考](../test-evidence/thinking-preview-20261021/README.md)及[现代交互](../test-evidence/pending-interactions-20261020/README.md)。
+> 对齐日期：2026-11-24。本文描述当前源码和运行路径。[DESIGN.md](DESIGN.md) 保留早期设计及迁移过程，不能作为当前部署步骤。功能操作见 [USAGE](../USAGE.md)，验收记录见[实时思考](../test-evidence/thinking-preview-20261021/README.md)及[现代交互](../test-evidence/pending-interactions-20261020/README.md)。
 
 ## 1. 系统边界
 
@@ -22,6 +22,7 @@ App 不提供模型服务配置、账户配对或文件上传管理。语音输�
 | 层与模块 | 职责 |
 | --- | --- |
 | Compose 页面 | 列表、设置、对话、交互卡、队列、折叠内容和滚动行为 |
+| Compose 外观层 | 冰蓝光幕（默认）与极光舱的配色、材质和短动效；皮肤不控制业务状态、导航或宿主接口 |
 | `ConversationViewModel` | 当前会话的历史合并、发送、队列、交互草稿、统计及思考连接生命周期 |
 | `DshRepository` | 进程级客户端、设置与状态流，连接前台服务和页面 |
 | `EventStreamService` | 前台服务，周期对账列表，维持工作区及现代交互连接，执行通知指令 |
@@ -51,9 +52,9 @@ App 不提供模型服务配置、账户配对或文件上传管理。语音输�
 | 会话列表、运行状态 | 前台服务约每 3 秒调用 `session.list`，再由状态机对账 |
 | 已落定消息、工具、统计 | 打开会话时读取历史；运行中约每 2 秒对账 |
 | 发送、停止、队列、重命名、分叉、归档 | 页面调用对应 HTTP 方法，按宿主响应与后续状态收敛 |
-| 模型目录 | 仍调用 `session.models` / `session/models`，尚未适配 `session/modelCatalog` |
+| 模型目录 | 新版宿主优先使用 `session/modelCatalog`，保留旧接口兼容 |
 
-模型目录是当前兼容限制：2026-10-21 的宿主检查中，旧入口 404，新目录入口 200。保留选择界面不代表新宿主的模型切换已完整可用。
+模型与思考等级以宿主目录为准；缺失目录时不把界面可打开视为宿主切换成功。
 
 ### 工作区订阅
 

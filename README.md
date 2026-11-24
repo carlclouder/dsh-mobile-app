@@ -1,6 +1,6 @@
 # DSH Mobile
 
-<img src="docs/icon-preview.png" width="96" alt="DSH Mobile 铠甲鲸鱼图标">
+<img src="docs/icon-preview.png" width="96" alt="DSH Mobile 冰蓝玻璃铠甲鲸鱼启动图标">
 
 DSH Mobile 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的安卓客户端。它使用 Kotlin、Jetpack Compose 和 Material3，提供会话列表、对话、审批与提问、排队消息、系统通知和底部实时思考预览。
 
@@ -11,7 +11,7 @@ DSH Mobile 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 1. 电脑先安装并配置 DSH，确认本地会话能正常使用。安装方法见[上游项目](https://github.com/deepseek-ai/deepseek-harness)。
 2. 手机与电脑加入同一 tailnet，并确保访问规则允许手机访问电脑。登录方式不限于邮箱，见 [Tailscale 身份提供商说明](https://tailscale.com/docs/integrations/identity)。
 3. 按 [Tailscale 远程访问指南](Tailscale远程访问DSH-安装使用文档.md) 配置 HTTPS 入口与认证。已有部署先检查实际配置，避免覆盖正在使用的服务。
-4. 从 [Releases](https://github.com/carlclouder/dsh-mobile-app/releases) 下载发布 APK，在 Android 8.0 及以上设备安装。
+4. 从 [DSH Mobile v0.1.223](release/DSH-Mobile-release-v0.1.223.apk) 下载发布 APK，在 Android 8.0 及以上设备安装。正式 APK 统一放在仓库的 [release/](release/) 目录，可查阅 [SHA-256 校验值](release/SHA256SUMS)。
 5. App 设置页填写服务器地址并保存，按系统提示开启通知权限；需要后台通知时，再按设备要求放宽电池限制。
 6. 打开真实会话，验证历史可读取、消息能发送、交互能回答。设置页“测试连接”只检查首页可达，不能替代这些验证。
 
@@ -37,14 +37,17 @@ DSH Mobile 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 | 通知 | 回合完成、审批和提问；依赖 Android 通知权限、后台运行条件及网络 |
 | Markdown | 支持表格、图片、链接、代码和列表；图片地址须在设备上可达；Mermaid 显示源码 |
 | 选择与复制 | 思考等 Compose 文本可选中；Markdown 正文未开启文本选择，不能统一长按复制所有气泡 |
-| 模型选择 | 保留选择界面，但依赖宿主接口兼容；当前宿主模型目录入口的兼容问题见 [USAGE.md](USAGE.md#模型选择) |
+| 模型选择 | 支持供应商、模型和思考等级，目录依赖宿主接口兼容；详见 [USAGE.md](USAGE.md#模型选择) |
+| 外观 | 设置 → 外观：冰蓝光幕（默认）或极光舱；切换后会记住选择 |
 | 语音 | 使用设备语音识别服务，识别结果填入输入框，不自动发送 |
 
 详细操作见 [USAGE.md](USAGE.md)。
 
 ## 已验证记录
 
-2026-10-21 的当前验收包为 **v0.1.195（196）**：192项测试通过，Debug/Release构建与签名校验通过。实际模拟器从App输入框发送两轮相同文字，手机时钟快5分钟时仍按提问→回复排列，无尾部副本；结束状态撤销、离开重进和铠甲鲸鱼图标启动均通过。真机及其他部署环境未验证。
+**v0.1.223（版本号 224）**：230 项单测全部通过，Debug/Release 构建及正式签名校验通过。Android 35 模拟器验证了双皮肤切换、重启保留、会话列表及历史、模型面板打开和返回关闭，以及由正式签名 v0.1.222 覆盖升级并启动。业务场景使用隔离数据，未连接生产宿主，也未进行真机验证。
+
+以下是历史版本验收记录，验证范围以各次记录为准：
 
 - [消息顺序与结束状态的连续GIF、测试结果和验证边界](test-evidence/message-order-20261021/README.md)
 - [铠甲鲸鱼图标的设备验收](test-evidence/launcher-icon-20261021/README.md)
@@ -88,7 +91,7 @@ $gradle = Join-Path $projectRoot '.toolchain\gradle-8.9\bin\gradle.bat'
 - [功能使用指南](USAGE.md)
 - [Tailscale 安装、端口与分层排障](Tailscale远程访问DSH-安装使用文档.md)
 - [当前架构与源码入口](docs/ARCHITECTURE.md)
-- [铠甲鲸鱼图标源图与生成方法](docs/requirements/2026-10-21-铠甲鲸鱼图标.md)
+- [旧版铠甲鲸鱼图标设计（历史记录）](docs/requirements/2026-10-21-铠甲鲸鱼图标.md)
 - [网关协议、配置与兼容边界](docs/dsh-auth-gateway-plugin.md)
 - [网关源码包说明](tools/dsh-auth-gateway/README.md)
 - [历史设计记录](docs/DESIGN.md)

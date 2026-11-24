@@ -11,9 +11,15 @@
 | 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
 | 设计文档 | 当前行为见 `docs/ARCHITECTURE.md` 及 `docs/requirements/`；`docs/DESIGN.md` 为历史设计 |
 | 产物根 | `<repo>\` |
-| 最后更新 | 2026-11-12：修复用户反馈的三处未修复项（新建会话数秒消失、模型/思考等级面板空、"等你输入"分组误报）；228 项单测通过，模拟器 0.1.222 实测并录 GIF 证据 |
-| 当前版本 | `app/version.properties` → versionCode=223 / versionName=0.1.222（**每次 assemble 自动 +1**；已生成 Debug 与正式签名 Release） |
-| 单测 | 228/228 绿（`testDebugUnitTest` 全量实测，failures=0、errors=0、skipped=0） |
+| 最后更新 | 2026-11-24：双皮肤与冰蓝鲸鱼启动图标发布、文档对齐 |
+| 当前版本 | [正式签名 v0.1.223](release/DSH-Mobile-release-v0.1.223.apk)（versionCode=224） |
+| 单测 | 230/230 通过（failures=0、errors=0、skipped=0） |
+
+## 2026-11-24 v0.1.223 双皮肤与启动图标（完成）
+
+- 设置 → 外观仅保留冰蓝光幕（默认）与极光舱，重启保留选择；视觉材质、动效及启动图标更新不改变既有业务流程。
+- Android 35 模拟器验证：首次默认、双皮肤切换及重启恢复、两种皮肤下会话列表与历史、模型面板打开和返回关闭。正式签名包从 v0.1.222 覆盖升级并启动。业务回归使用隔离数据，未连接生产宿主，未做真机验证。
+- Debug/Release 构建与正式签名验证通过。按仓库惯例由 [release/](release/) 留存版本 APK 与 [SHA-256](release/SHA256SUMS)，不覆盖历史版本。
 
 ## 2026-11-12 三处未修复缺陷补修（完成）
 
