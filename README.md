@@ -6,6 +6,14 @@ DSH Mobile 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 
 手机通过 Tailscale 私有网络访问电脑上的 DSH。App 连接的是你自己的宿主，不在手机内运行模型。
 
+### App 界面一览（旧版）
+
+以下四张为旧版界面实拍，不代表 v0.1.223 的冰蓝光幕或极光舱。
+
+| 会话列表 | 对话页 | 模型选择 | 设置 |
+|:---:|:---:|:---:|:---:|
+| ![会话列表](docs/screenshots/demo_session_list.png) | ![对话页](docs/screenshots/demo_conversation.png) | ![模型选择](docs/screenshots/demo_model_picker.png) | ![设置](docs/screenshots/demo_settings_page.png) |
+
 ## 安装与连接
 
 1. 电脑先安装并配置 DSH，确认本地会话能正常使用。安装方法见[上游项目](https://github.com/deepseek-ai/deepseek-harness)。
