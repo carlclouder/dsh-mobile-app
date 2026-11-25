@@ -8,7 +8,7 @@
 
 | 字段 | 值 |
 |---|---|
-| 目标 | goal-2bad2bf7（本会话重建；原 goal-ad225633 属旧会话） |
+| 目标 | goal-example-1（本会话重建；原 goal-example-2 属旧会话） |
 | 设计文档 | 当前行为见 `docs/ARCHITECTURE.md` 及 `docs/requirements/`；`docs/DESIGN.md` 为历史设计 |
 | 产物根 | `<repo>\` |
 | 最后更新 | 2026-11-24：双皮肤与冰蓝鲸鱼启动图标发布、文档对齐 |
@@ -221,8 +221,8 @@ v0.1.223 的构建、签名和模拟器验收记录见上文。README 的四张�
 
 > **跳到底部按钮 + 创建会话修复（release 0.1.96，待提交）**：
 > - **跳到底部按钮**（类似 WebUI）：`showJumpToBottom` 状态监听 `listState.layoutInfo`（snapshotFlow），上翻离开底部(<size-3)时在列表底部右下显示悬浮「⬇跳到底部」，点击 `animateScrollToItem(size-1)` 滚到底并恢复自动滚动；在底部时隐藏（自动滚动正常）。首次进入默认到底（现有 scrolledOnce 保留）。
-> - **创建会话修复**：「+」选工作区创建无效 bug——`createSession` 成功后原来没刷列表/不跳转；修复=成功后 `requestManualRefresh`+`_operationTick++`（列表刷新）+ **自动跳转新会话对话页**。实测：选 Desktop 工作区 → host 创建新会话(`session-d80f96cb`) + App 自动进入对话页。
-> - **创建会话挂工作区修复（0.1.98）**：新会话落"未分组"根因=**`session.create(cwd)` 不会挂工作区**（只设 cwd）；`session.create(workspaceId)` 才会挂到对应工作区（host 验 `session-6d6142e4` 进 Desktop.sessionIds）。修复=`DshApiClient.sessionCreate` 改传 `workspaceId` + `SessionListScreen.onCreate(workspace.workspaceId)`（原 path）。单测同步改为 workspaceId 语义（62/62 绿）。—— 待真机确认"新会话落对应工作区分组"。
+> - **创建会话修复**：「+」选工作区创建无效 bug——`createSession` 成功后原来没刷列表/不跳转；修复=成功后 `requestManualRefresh`+`_operationTick++`（列表刷新）+ **自动跳转新会话对话页**。实测：选 Desktop 工作区 → host 创建新会话(`session-example-1`) + App 自动进入对话页。
+> - **创建会话挂工作区修复（0.1.98）**：新会话落"未分组"根因=**`session.create(cwd)` 不会挂工作区**（只设 cwd）；`session.create(workspaceId)` 才会挂到对应工作区（host 验 `session-example-2` 进 Desktop.sessionIds）。修复=`DshApiClient.sessionCreate` 改传 `workspaceId` + `SessionListScreen.onCreate(workspace.workspaceId)`（原 path）。单测同步改为 workspaceId 语义（62/62 绿）。—— 待真机确认"新会话落对应工作区分组"。
 > - **插话(Steer)立即发送并清理排队（0.1.101，已提交 475c011）**：点 ⚡插话原来复制一条排队消息 + 不清理原项。修复=①`steer(itemId,text)` 成功后**本地移除该排队项**；②`collectQueue` 只显示 `placement=="queued"`（排除 steering 回显项，避免"复制一条"）。—— 注：DSH 的 steer 本身是"排队中途引导"(agent 运行中要等下一步边界才消费)，非立即打断；agent 空闲才立即启动一轮。单测 62/62 绿。
 > - **插话彻底修复（三方评审一致 P0，已提交 b5b5da7）**：全面评审（A 协议/B 数据流/C UI）结论=**插话走错 RPC 通道**——用 `session.prompt mode="steer"` 发新文本 + 本地删排队项，host 从没消费该项 → 回显覆盖 → 残留/复制/不发送。**修复**=改走 `session.updateQueue {kind:"steer", target:"next-turn"}`（host 就地转换该项 placement queued→steering），`steer()` 本地乐观移除该项(成功) + 失败 Toast(steer-unavailable=agent 未在运行)；`_running` 不再强置(由 host 快照/TurnStart 权威驱动)；**实测**：消费进对话流/仅 1 次不复制/排队区清空无残留。
 > - **全面评审 P1 修复（已提交 9c6a6bc）**：①P1-1 `loadHistory` 不整表覆盖 `_messages`——改按 key 合并进现有(防 history 往返期间实时消息被抹=消息闪失)；②P1-3 插话成功乐观移除排队项(host 接受则必离开 queued，立即消失+回显校准)；③P2-1 删死代码 `sessionSteer()`(插话已走 updateQueue)。—— 待办(未修)：G-22"上下文已用%"声明未写入未显示、send/edit/delete 失败静默、createSession 形参名 cwd 实传 workspaceId 命名误导、release 缺 keystore 静默降级 debug 签名、P1-2 空闲插话未兜底启动一轮。
