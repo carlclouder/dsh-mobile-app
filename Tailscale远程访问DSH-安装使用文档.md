@@ -27,7 +27,7 @@ Android App / 手机浏览器
 ## 2. 准备条件
 
 - 电脑安装并配置 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，本地模型和会话可用。
-- Android 8.0 及以上设备，安装 [DSH Mobile 发布包](https://github.com/carlclouder/dsh-mobile-app/releases)。
+- Android 8.0 及以上设备，安装 [DSH Mobile 发布包](release/DSH-Mobile-release-v0.1.223.apk)。
 - 手机与电脑安装 [Tailscale](https://tailscale.com/download)，加入同一 tailnet，访问规则允许手机连接电脑。
 - 电脑上的服务监听在回环地址，由 Serve 提供远程入口；不要为排障直接把 DSH 暴露到公网。
 
